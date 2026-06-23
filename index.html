@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>玄学星域神谕台</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2302040a'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%23c9a45b' stroke-width='3'/%3E%3Cpath d='M32 8 41 32 32 56 23 32Z' fill='%237edbd3'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <canvas id="starfield" class="starfield" aria-hidden="true"></canvas>
+
+    <main class="cosmos" aria-label="玄学星域神谕台">
+      <section id="scene" class="scene scene-home-reimagined">
+        <div class="deep-vignette" aria-hidden="true"></div>
+        <div class="void-noise" aria-hidden="true"></div>
+        <div class="void-haze" aria-hidden="true"></div>
+        <div class="sanctum-murals" aria-hidden="true">
+          <div class="sanctum-mural sanctum-mural-echo"></div>
+          <div class="sanctum-mural sanctum-mural-veil"></div>
+          <div class="sanctum-mural sanctum-mural-river"></div>
+        </div>
+        <div class="sanctum-vault" aria-hidden="true"></div>
+        <div class="sanctum-axis" aria-hidden="true">
+          <div class="sanctum-axis-beam"></div>
+          <div class="sanctum-axis-star"></div>
+        </div>
+        <div class="sanctum-pillars" aria-hidden="true"></div>
+        <div class="sanctum-dais" aria-hidden="true"></div>
+        <div class="celestial-grid" aria-hidden="true"></div>
+        <div class="ecliptic ecliptic-a" aria-hidden="true"></div>
+        <div class="ecliptic ecliptic-b" aria-hidden="true"></div>
+        <div class="talisman-drift" aria-hidden="true">
+          <span class="talisman-paper talisman-paper-a"></span>
+          <span class="talisman-paper talisman-paper-b"></span>
+          <span class="talisman-paper talisman-paper-c"></span>
+          <span class="talisman-paper talisman-paper-d"></span>
+        </div>
+        <div class="oracle-threshold" aria-hidden="true">
+          <div class="threshold-gate"></div>
+          <div class="threshold-lintel"></div>
+          <div class="threshold-beam"></div>
+          <div class="threshold-reflection"></div>
+        </div>
+        <header class="home-command-bar">
+          <div class="home-brand-lockup" aria-label="玄谕主控台">
+            <span class="home-brand-mark" aria-hidden="true">玄</span>
+            <div class="home-brand-copy">
+              <p class="home-brand-eyebrow">XUAN ORACLE</p>
+              <p class="home-brand-title">玄谕</p>
+            </div>
+          </div>
+          <button id="progressToggle" class="progress-toggle progress-toggle-refined" type="button">诸术总盘</button>
+        </header>
+        <div class="home-hero-frame" aria-hidden="true">
+          <div class="home-hero-ring home-hero-ring-outer"></div>
+          <div class="home-hero-ring home-hero-ring-inner"></div>
+          <div class="home-hero-axis"></div>
+        </div>
+
+        <aside class="home-atlas-panel" aria-label="诸术总盘">
+          <div class="home-atlas-header">
+            <p class="home-atlas-eyebrow">诸术总盘</p>
+            <h2>二十一术并观</h2>
+            <p class="home-atlas-caption">启盘观法</p>
+          </div>
+          <div class="luopan-stage" aria-label="玄学体系太极罗盘">
+            <div class="luopan-aura" aria-hidden="true"></div>
+            <div class="luopan-spin">
+              <div class="luopan-disc" aria-hidden="true">
+                <div class="luopan-ring luopan-ring-outer"></div>
+                <div class="luopan-ring luopan-ring-mid"></div>
+                <div class="luopan-ring luopan-ring-inner"></div>
+                <div class="luopan-spokes"></div>
+                <div class="luopan-taiji">
+                  <span class="taiji-dot taiji-dot-light"></span>
+                  <span class="taiji-dot taiji-dot-dark"></span>
+                </div>
+              </div>
+              <div id="planetField" class="planet-field" aria-label="玄学体系太极罗盘"></div>
+            </div>
+          </div>
+        </aside>
+        <div class="center-hush" aria-hidden="true"></div>
+
+        <section id="oracleCore" class="oracle-core oracle-core-void">
+          <div class="oracle-aegis oracle-aegis-left" aria-hidden="true"></div>
+          <div class="oracle-aegis oracle-aegis-right" aria-hidden="true"></div>
+          <div class="home-sigil" aria-hidden="true">
+            <span class="home-sigil-ring"></span>
+            <span class="home-sigil-core"></span>
+          </div>
+          <div class="oracle-mirror" aria-hidden="true"></div>
+          <div class="oracle-core-shell">
+            <p class="eyebrow">天门未启 诸术潜听</p>
+            <h1>问天</h1>
+            <p class="oracle-invocation">
+              把你真正想问的一件事，落进这口黑池。系统会在幕后分流、追问，再带回一份总谕。
+            </p>
+            <form id="oracleForm" class="oracle-form">
+              <div class="question-slab">
+                <span class="question-whisper">默念所问</span>
+                <textarea
+                  id="questionInput"
+                  rows="4"
+                  autocomplete="off"
+                  placeholder="例如：这次搬家，是去南边更顺，还是留在原地更稳？"
+                  autofocus
+                ></textarea>
+              </div>
+              <div class="oracle-understory">
+                <div class="oracle-promise-row" aria-label="系统能力预告">
+                  <span>自动分流</span>
+                  <span>缺失追问</span>
+                  <span>统一结论</span>
+                </div>
+                <div class="oracle-suggestion-row" aria-label="快捷提问示例">
+                  <button class="suggestion-chip" type="button" data-suggestion="我今年是否适合换城市发展？">换城时机</button>
+                  <button class="suggestion-chip" type="button" data-suggestion="这段关系接下来是继续投入，还是应该慢下来观察？">关系走势</button>
+                  <button class="suggestion-chip" type="button" data-suggestion="我现在住的这套房子，适不适合长期住下去？">居所风水</button>
+                </div>
+              </div>
+              <div class="oracle-divider" aria-hidden="true"></div>
+              <div class="ritual-rail" aria-label="启动推演">
+                <button id="askButton" class="primary-action ritual-cta" type="submit">
+                  <span class="ritual-cta-label">启门问天</span>
+                </button>
+              </div>
+              <div class="oracle-meta-strip">
+                <div class="vault-status">
+                  <span id="overallPercent">0%</span>
+                  <span id="overallMeta">诸术潜听</span>
+                </div>
+                <p id="status" class="status">黑池静候，你只需先落下这一问</p>
+              </div>
+            </form>
+          </div>
+        </section>
+
+          <section id="followUpPanel" class="follow-up-panel hidden" aria-live="polite">
+            <div class="follow-up-header">
+              <span id="followUpBadge" class="follow-up-badge"></span>
+              <h3 id="followUpTitle" class="follow-up-title"></h3>
+              <p id="followUpSummary" class="follow-up-summary"></p>
+            </div>
+            <p id="followUpPrompt" class="follow-up-prompt hidden"></p>
+            <div id="followUpConversation" class="follow-up-conversation"></div>
+            <div class="follow-up-actions">
+              <button id="followUpReset" class="follow-up-reset" type="button">重新提问</button>
+            </div>
+          </section>
+        <section id="cutscene" class="cutscene" aria-live="polite">
+          <div class="phase-backdrops" aria-hidden="true">
+            <div class="phase-backdrop backdrop-incense"></div>
+            <div class="phase-backdrop backdrop-gods"></div>
+            <div class="phase-backdrop backdrop-harvest"></div>
+          </div>
+          <canvas id="ritualCanvas" class="ritual-canvas" aria-hidden="true"></canvas>
+          <div id="blindBox" class="ritual-altar" aria-hidden="true">
+            <div class="altar-base"></div>
+            <div class="altar-ring"></div>
+            <div class="altar-seal"></div>
+            <div class="incense-cluster">
+              <button class="incense-stick incense-left" type="button" data-stick="0" aria-label="点燃左侧问天香">
+                <span class="incense-tip"></span>
+                <span class="incense-glow"></span>
+                <span class="smoke smoke-a"></span>
+                <span class="smoke smoke-b"></span>
+                <span class="smoke smoke-c"></span>
+              </button>
+              <button class="incense-stick incense-center" type="button" data-stick="1" aria-label="点燃中间问天香">
+                <span class="incense-tip"></span>
+                <span class="incense-glow"></span>
+                <span class="smoke smoke-a"></span>
+                <span class="smoke smoke-b"></span>
+                <span class="smoke smoke-c"></span>
+              </button>
+              <button class="incense-stick incense-right" type="button" data-stick="2" aria-label="点燃右侧问天香">
+                <span class="incense-tip"></span>
+                <span class="incense-glow"></span>
+                <span class="smoke smoke-a"></span>
+                <span class="smoke smoke-b"></span>
+                <span class="smoke smoke-c"></span>
+              </button>
+            </div>
+          </div>
+          <div id="ritualCursor" class="ritual-cursor" aria-hidden="true"></div>
+          <p id="ritualPrompt" class="ritual-prompt" aria-live="polite"></p>
+          <div id="oracleRunes" class="divine-court" aria-hidden="true"></div>
+          <div id="thinkingVoices" class="thinking-voices"></div>
+          <div id="answerConstellation" class="answer-constellation"></div>
+          <div class="time-sea" aria-hidden="true">
+            <div class="time-sea-core"></div>
+            <div class="time-sea-rings"></div>
+          </div>
+        </section>
+
+        <section id="finalChamber" class="final-chamber hidden" aria-live="polite">
+          <button id="finalClose" class="final-close" type="button">退出神殿</button>
+          <div class="river-stage" aria-hidden="true">
+            <div class="river"></div>
+            <div class="fate-hand">
+              <span class="palm"></span>
+              <span class="finger f1"></span>
+              <span class="finger f2"></span>
+              <span class="finger f3"></span>
+              <span class="finger f4"></span>
+              <span class="thumb"></span>
+            </div>
+            <div class="answer-orb"></div>
+          </div>
+          <p class="eyebrow">终谕显形</p>
+          <h2>时间星河捞出的最终答案</h2>
+          <div id="directVerdictCard" class="direct-verdict hidden">
+            <p id="directVerdictLead" class="direct-verdict-lead"></p>
+            <p id="directVerdictMeta" class="direct-verdict-meta"></p>
+          </div>
+          <section id="controllerPanel" class="controller-panel hidden" aria-label="智能总控研判">
+            <div class="controller-head">
+              <div>
+                <p class="eyebrow">智能总控</p>
+                <h3 id="controllerQuestionType">问题类型研判</h3>
+              </div>
+              <span id="controllerSelectedCount">0 个体系</span>
+            </div>
+            <p id="controllerSummary" class="controller-summary"></p>
+            <div class="controller-grid">
+              <section>
+                <h4>本轮主调体系</h4>
+                <ul id="controllerSelectedSystems"></ul>
+              </section>
+              <section>
+                <h4>总控识别信号</h4>
+                <ul id="controllerSignals"></ul>
+              </section>
+              <section>
+                <h4>备用或缺失</h4>
+                <ul id="controllerGaps"></ul>
+              </section>
+            </div>
+          </section>
+          <div id="summaryAnswer" class="summary-answer"></div>
+          <section class="result-band">
+            <div class="result-band-head">
+              <h3>本轮参与的神系</h3>
+              <p>能直算的先直算，不能直算的明确说明边界与原因。</p>
+            </div>
+            <div id="systemAnswerCards" class="system-answer-cards"></div>
+          </section>
+          <div class="final-columns">
+            <section>
+              <h3>共识</h3>
+              <ul id="agreements"></ul>
+            </section>
+            <section>
+              <h3>分歧</h3>
+              <ul id="differences"></ul>
+            </section>
+            <section>
+              <h3>提醒</h3>
+              <ul id="cautions"></ul>
+            </section>
+          </div>
+        </section>
+
+        <aside id="progressDrawer" class="progress-drawer" aria-label="玄学体系完成度">
+          <div class="drawer-head">
+            <div>
+              <p class="eyebrow">卷宗进度</p>
+              <h2>星图完成度</h2>
+            </div>
+            <button id="drawerClose" type="button" aria-label="关闭">×</button>
+          </div>
+          <div id="progressList" class="progress-list"></div>
+        </aside>
+
+        <section id="planetGuide" class="planet-guide hidden" aria-live="polite">
+          <div class="planet-guide-backdrop" data-guide-close="true"></div>
+          <div id="guideFocus" class="planet-guide-focus" aria-hidden="true">
+            <div class="planet-guide-crown"></div>
+            <div class="planet-guide-orbit"></div>
+            <div class="planet-guide-sphere">
+              <span id="guideGlyph" class="planet-guide-glyph">玄</span>
+            </div>
+            <div class="planet-guide-aura"></div>
+          </div>
+          <div class="planet-guide-panel">
+            <button id="guideClose" class="guide-close" type="button" aria-label="关闭">×</button>
+            <p id="guideMode" class="eyebrow">神系导览</p>
+            <h2 id="guideTitle">玄学体系说明</h2>
+            <section class="guide-block guide-block-full guide-block-primary">
+              <h3>开始推演前必须具备</h3>
+              <ul id="guideNeeds"></ul>
+            </section>
+            <label id="guideQuestionLabel" class="guide-input-label" for="guideQuestionInput">按要求把关键信息与问题写在这里</label>
+            <textarea
+              id="guideQuestionInput"
+              class="guide-question-input"
+              rows="5"
+              autocomplete="off"
+              placeholder="把这个体系需要的信息和你的问题一起写进来"
+            ></textarea>
+            <p id="guideQuestionHint" class="guide-question-hint">这里放最终用于推演的完整问法。</p>
+            <section id="guideWorkbench" class="guide-workbench hidden" aria-live="polite">
+              <div class="guide-workbench-head">
+                <h3 id="guideWorkbenchTitle">结构化起算</h3>
+                <p id="guideWorkbenchIntro">把这个体系真正需要的条件填进去，系统会替你组装成可直接推演的提问。</p>
+              </div>
+              <div id="guideWorkbenchFields" class="guide-workbench-fields"></div>
+              <p id="guideWorkbenchHint" class="guide-workbench-hint">填写完成后会自动生成一段更适合本地起算的提问。</p>
+              <div class="guide-workbench-actions">
+                <button id="guideWorkbenchFill" class="ghost-action guide-workbench-action" type="button">生成提问</button>
+              </div>
+            </section>
+            <section id="divinationWorkbench" class="divination-workbench hidden" aria-live="polite">
+              <div class="divination-workbench-head">
+                <h3 id="divinationWorkbenchTitle">起卦台</h3>
+                <p id="divinationWorkbenchIntro">先写问题，再选起卦方式。摇出来的数字和动爻会直接写回提问框。</p>
+              </div>
+              <div id="divinationStepStrip" class="ritual-step-strip" aria-label="起卦流程">
+                <span class="ritual-step-chip" data-step-key="question">1 定问题</span>
+                <span class="ritual-step-chip" data-step-key="seed">2 起卦</span>
+                <span class="ritual-step-chip" data-step-key="review">3 成问</span>
+                <span class="ritual-step-chip" data-step-key="launch">4 推演</span>
+              </div>
+              <p id="divinationStepHint" class="ritual-step-hint">先在上方写具体问题，再决定起卦方式。</p>
+              <div class="divination-mode-row" role="tablist" aria-label="起卦方式">
+                <button class="chip-button active" type="button" data-divination-mode="dice">三骰取数</button>
+                <button class="chip-button" type="button" data-divination-mode="lines">六次摇卦</button>
+                <button class="chip-button" type="button" data-divination-mode="time">此刻起卦</button>
+              </div>
+              <div class="divination-form">
+                <label class="divination-field" for="divinationQuestionInput">
+                  <span>具体问题</span>
+                  <textarea id="divinationQuestionInput" rows="3" placeholder="例如：这次合作能不能成？"></textarea>
+                </label>
+                <label class="divination-field" for="divinationHorizonInput">
+                  <span>时间范围</span>
+                  <input id="divinationHorizonInput" type="text" placeholder="例如：这周 / 这个月 / 三个月内" />
+                </label>
+                <label class="divination-field divination-field-full" for="divinationBackgroundInput">
+                  <span>补充背景</span>
+                  <textarea id="divinationBackgroundInput" rows="2" placeholder="例如：已经聊过两轮，对方还没给明确答复。"></textarea>
+                </label>
+              </div>
+              <div class="divination-toolbar">
+                <button id="divinationRollButton" class="primary-action" type="button">摇一下</button>
+                <button id="divinationQuickButton" class="ghost-action" type="button">一键成卦</button>
+                <button id="divinationResetButton" class="ghost-action" type="button">重置</button>
+              </div>
+              <div id="divinationDiceBoard" class="divination-dice-board"></div>
+              <div id="divinationLineBoard" class="divination-line-board"></div>
+              <p id="divinationResultText" class="divination-result-text">先写问题，再摇卦。</p>
+            </section>
+            <section id="physiognomyWorkbench" class="physiognomy-workbench hidden" aria-live="polite">
+              <div class="physiognomy-workbench-head">
+                <h3>相术观察台</h3>
+                <p>先选观察场景，再勾选看得见的特征。当前只做观察整理，不会假装直接读像素。</p>
+              </div>
+              <div id="physiognomyStepStrip" class="ritual-step-strip" aria-label="相术观察流程">
+                <span class="ritual-step-chip" data-step-key="context">1 定场景</span>
+                <span class="ritual-step-chip" data-step-key="traits">2 记特征</span>
+                <span class="ritual-step-chip" data-step-key="review">3 成问</span>
+                <span class="ritual-step-chip" data-step-key="launch">4 推演</span>
+              </div>
+              <p id="physiognomyStepHint" class="ritual-step-hint">先确认观察场景，再勾选真正看得见的特征。</p>
+              <div class="physiognomy-form">
+                <label class="physiognomy-field" for="physiognomyContextSelect">
+                  <span>观察场景</span>
+                  <select id="physiognomyContextSelect">
+                    <option>日间正面照片</option>
+                    <option>视频截图</option>
+                    <option>当面观察</option>
+                    <option>夜间或低光照片</option>
+                  </select>
+                </label>
+                <label class="physiognomy-field" for="physiognomyGoalInput">
+                  <span>想看什么</span>
+                  <input id="physiognomyGoalInput" type="text" placeholder="例如：整体气质 / 事业倾向 / 情感表达" />
+                </label>
+                <label class="physiognomy-field physiognomy-field-full" for="physiognomyNotesInput">
+                  <span>观察记录</span>
+                  <textarea id="physiognomyNotesInput" rows="3" placeholder="例如：额头开阔、眼神清、鼻梁直、下巴饱满。"></textarea>
+                </label>
+                <label class="physiognomy-field physiognomy-field-full" for="physiognomyImageInput">
+                  <span>图片辅助</span>
+                  <input id="physiognomyImageInput" type="file" accept="image/*" multiple />
+                </label>
+              </div>
+              <p id="physiognomyImageHint" class="physiognomy-hint">可上传正面照片或截图做观察辅助。</p>
+              <div id="physiognomyPreviewList" class="physiognomy-preview-list"></div>
+              <div id="physiognomyTraitGroups" class="physiognomy-trait-groups"></div>
+              <p id="physiognomySelectedSummary" class="physiognomy-selected-summary">还没有形成稳定观察记录。</p>
+              <div class="physiognomy-toolbar">
+                <button id="physiognomyFill" class="primary-action" type="button">写入提问框</button>
+                <button id="physiognomyReset" class="ghost-action" type="button">重置</button>
+              </div>
+            </section>
+            <section id="tarotWorkbench" class="tarot-workbench hidden" aria-live="polite">
+              <div class="tarot-workbench-head">
+                <h3>塔罗翻牌</h3>
+                <p>先选牌阵，再洗牌翻牌，牌面会自动带入提问。</p>
+              </div>
+              <div id="tarotStepStrip" class="ritual-step-strip" aria-label="塔罗翻牌流程">
+                <span class="ritual-step-chip" data-step-key="question">1 写问题</span>
+                <span class="ritual-step-chip" data-step-key="start">2 启牌</span>
+                <span class="ritual-step-chip" data-step-key="reveal">3 翻牌</span>
+                <span class="ritual-step-chip" data-step-key="launch">4 推演</span>
+              </div>
+              <p id="tarotStepHint" class="ritual-step-hint">先把真正要问的事写清楚，再点开始翻牌。</p>
+              <div class="tarot-toolbar">
+                <select id="tarotSpreadSelect" class="tarot-select" aria-label="塔罗牌阵">
+                  <option value="single">单张指引</option>
+                  <option value="three_card">三张时间流</option>
+                  <option value="celtic_cross">凯尔特十字</option>
+                </select>
+                <button id="tarotShuffle" class="ghost-action tarot-action" type="button">洗牌</button>
+                <button id="tarotDeal" class="primary-action tarot-action" type="button">开始翻牌</button>
+              </div>
+              <div id="tarotSpreadBoard" class="tarot-spread-board"></div>
+              <p id="tarotResultText" class="tarot-result-text">还没有翻牌。</p>
+            </section>
+            <section class="guide-summary-grid" aria-label="体系速览">
+              <article class="guide-summary-card guide-summary-card-large">
+                <span class="guide-summary-label">体系简介</span>
+                <p id="guideSummary"></p>
+              </article>
+              <article class="guide-summary-card">
+                <span class="guide-summary-label">最适合问</span>
+                <p id="guideBestFor"></p>
+              </article>
+              <article class="guide-summary-card">
+                <span class="guide-summary-label">推荐问法</span>
+                <p id="guideAskFormat"></p>
+              </article>
+              <article class="guide-summary-card guide-summary-card-muted">
+                <span class="guide-summary-label">避免</span>
+                <p id="guideAvoid"></p>
+              </article>
+            </section>
+            <div class="guide-actions">
+              <button id="guideUsePrompt" class="primary-action guide-action" type="button">用这段内容开启推演</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

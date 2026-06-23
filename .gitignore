@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+node_modules/
+npm-debug.log*
+logs/
+miniapp/
+.playwright-cli/
+server.err.log
+server.out.log
+server_runtime.err.log
+server_runtime.log
+tmp_*.json

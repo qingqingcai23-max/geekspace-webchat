@@ -1,0 +1,11 @@
+{
+  "name": "geekspace-webchat",
+  "private": true,
+  "dependencies": {
+    "iztro": "^2.5.8",
+    "natalengine": "^1.2.0",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "taibu-core": "^3.4.0"
+  }
+}

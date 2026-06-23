@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: geekspace-webchat
+    env: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /
