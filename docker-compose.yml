@@ -1,0 +1,14 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: geekspace-webchat
+    restart: unless-stopped
+    ports:
+      - "80:8080"
+    environment:
+      PORT: 8080
+      HOST: 0.0.0.0
+      GEEKSPACE_VAULT_DIR: /app/runtime/xuanxue-knowledge-vault
+      GEEKSPACE_API_KEY: ${GEEKSPACE_API_KEY}
