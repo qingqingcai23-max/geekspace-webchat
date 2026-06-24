@@ -15,4 +15,5 @@ server.err.log
 server.out.log
 server_runtime.err.log
 server_runtime.log
+tunnel*.log
 tmp_*.json
