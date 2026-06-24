@@ -1400,6 +1400,12 @@ def answer_question(question: str, model: str) -> dict[str, Any]:
 
 @app.get("/")
 def index():
+    return send_from_directory(APP_DIR, "public-home.html")
+
+
+@app.get("/app")
+@app.get("/app/")
+def full_app():
     return send_from_directory(APP_DIR, "index.html")
 
 

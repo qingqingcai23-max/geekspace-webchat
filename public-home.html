@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>问天</title>
+    <meta
+      name="description"
+      content="轻量入口版玄学问答台，公网优先秒开，直接提问，直接收结果。"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #05070d;
+        --panel: rgba(12, 16, 28, 0.82);
+        --panel-strong: rgba(10, 14, 24, 0.96);
+        --line: rgba(201, 164, 91, 0.18);
+        --line-strong: rgba(201, 164, 91, 0.38);
+        --text: #f3ead7;
+        --muted: #a9b3c7;
+        --accent: #c9a45b;
+        --accent-soft: rgba(201, 164, 91, 0.14);
+        --cyan: #82d6d1;
+        --shadow: 0 22px 64px rgba(0, 0, 0, 0.42);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 50% 18%, rgba(117, 169, 193, 0.16), transparent 22%),
+          radial-gradient(circle at 50% 0%, rgba(201, 164, 91, 0.14), transparent 26%),
+          linear-gradient(180deg, #090b12, #05070d 42%, #04060b);
+      }
+
+      .shell {
+        position: relative;
+        width: min(100%, 1120px);
+        margin: 0 auto;
+        padding: 32px 20px 72px;
+      }
+
+      .shell::before {
+        content: "";
+        position: absolute;
+        inset: 18px 20px auto;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(201, 164, 91, 0.28), transparent);
+        pointer-events: none;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 8px 0 28px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: 1px solid rgba(201, 164, 91, 0.28);
+        background:
+          radial-gradient(circle at 50% 42%, rgba(201, 164, 91, 0.14), transparent 68%),
+          rgba(8, 10, 18, 0.7);
+        color: var(--accent);
+        font-size: 20px;
+        box-shadow: inset 0 0 26px rgba(201, 164, 91, 0.08);
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 3px;
+      }
+
+      .brand-copy small {
+        color: rgba(169, 179, 199, 0.78);
+        font-size: 11px;
+        letter-spacing: 0.22em;
+      }
+
+      .brand-copy strong {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .ghost-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        background: rgba(10, 12, 20, 0.42);
+        text-decoration: none;
+        transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+      }
+
+      .ghost-link:hover {
+        color: var(--text);
+        border-color: rgba(201, 164, 91, 0.34);
+        transform: translateY(-1px);
+      }
+
+      .hero {
+        display: grid;
+        gap: 22px;
+        padding: 64px 0 24px;
+        min-height: calc(100vh - 152px);
+        align-content: start;
+      }
+
+      .hero-copy {
+        display: grid;
+        gap: 14px;
+        text-align: center;
+        justify-items: center;
+      }
+
+      .hero-copy small {
+        color: rgba(169, 179, 199, 0.78);
+        font-size: 12px;
+        letter-spacing: 0.26em;
+      }
+
+      .hero-copy h1 {
+        margin: 0;
+        font-size: clamp(50px, 9vw, 104px);
+        font-weight: 600;
+        line-height: 1;
+      }
+
+      .hero-copy p {
+        margin: 0;
+        width: min(100%, 720px);
+        color: var(--muted);
+        font-size: clamp(15px, 2vw, 18px);
+        line-height: 1.85;
+      }
+
+      .ask-panel {
+        width: min(100%, 860px);
+        margin: 0 auto;
+        padding: 18px;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(14, 18, 30, 0.96), rgba(8, 11, 20, 0.94)),
+          radial-gradient(circle at top, rgba(201, 164, 91, 0.06), transparent 60%);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .ask-form {
+        display: grid;
+        gap: 16px;
+      }
+
+      .ask-form textarea {
+        width: 100%;
+        min-height: 156px;
+        padding: 20px 22px;
+        border: 1px solid rgba(201, 164, 91, 0.14);
+        border-radius: 18px;
+        resize: vertical;
+        color: var(--text);
+        background: rgba(3, 5, 12, 0.84);
+        font: inherit;
+        line-height: 1.75;
+        outline: none;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.015);
+      }
+
+      .ask-form textarea:focus {
+        border-color: rgba(130, 214, 209, 0.42);
+        box-shadow:
+          0 0 0 3px rgba(130, 214, 209, 0.08),
+          inset 0 0 0 1px rgba(130, 214, 209, 0.08);
+      }
+
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .chip {
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid rgba(201, 164, 91, 0.14);
+        border-radius: 999px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.02);
+        font: inherit;
+        transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease;
+      }
+
+      .chip:hover {
+        color: var(--text);
+        border-color: rgba(201, 164, 91, 0.3);
+        background: rgba(201, 164, 91, 0.06);
+        transform: translateY(-1px);
+      }
+
+      .ask-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .status strong {
+        color: var(--text);
+        font-weight: 500;
+      }
+
+      .primary {
+        min-width: 160px;
+        min-height: 46px;
+        padding: 0 24px;
+        border: none;
+        border-radius: 999px;
+        color: #0b0d14;
+        background:
+          linear-gradient(135deg, #e2c989, #c9a45b 48%, #f0dcab);
+        font: inherit;
+        font-weight: 600;
+        box-shadow: 0 10px 26px rgba(201, 164, 91, 0.22);
+        transition: transform 160ms ease, filter 160ms ease, opacity 160ms ease;
+      }
+
+      .primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        filter: brightness(1.03);
+      }
+
+      .primary:disabled {
+        cursor: wait;
+        opacity: 0.72;
+      }
+
+      .result-shell {
+        display: none;
+        gap: 18px;
+        margin-top: 24px;
+      }
+
+      .result-shell.visible {
+        display: grid;
+      }
+
+      .result-card {
+        padding: 22px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .result-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .result-head h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      .result-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(130, 214, 209, 0.22);
+        color: var(--cyan);
+        background: rgba(130, 214, 209, 0.08);
+        font-size: 12px;
+      }
+
+      .lead {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(18px, 2.2vw, 24px);
+        line-height: 1.9;
+      }
+
+      .hint-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .hint-card {
+        padding: 16px 16px 18px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .hint-card strong {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 14px;
+        color: rgba(243, 234, 215, 0.9);
+      }
+
+      .hint-card ul {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--muted);
+        line-height: 1.85;
+      }
+
+      .answer-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .answer-table th,
+      .answer-table td {
+        padding: 14px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        vertical-align: top;
+        text-align: left;
+      }
+
+      .answer-table th {
+        width: 140px;
+        color: rgba(243, 234, 215, 0.88);
+        font-weight: 500;
+      }
+
+      .answer-table td {
+        color: var(--muted);
+        line-height: 1.9;
+      }
+
+      .answer-table tr:last-child th,
+      .answer-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .list {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      .list li {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.82;
+      }
+
+      .empty {
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .footer-note {
+        text-align: center;
+        color: rgba(169, 179, 199, 0.64);
+        font-size: 13px;
+        line-height: 1.8;
+        padding-top: 10px;
+      }
+
+      @media (max-width: 900px) {
+        .shell {
+          padding: 20px 14px 54px;
+        }
+
+        .topbar {
+          padding-bottom: 22px;
+        }
+
+        .hero {
+          padding-top: 34px;
+          min-height: auto;
+        }
+
+        .ask-panel,
+        .result-card {
+          border-radius: 20px;
+        }
+
+        .hint-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .ask-actions {
+          align-items: stretch;
+        }
+
+        .primary {
+          width: 100%;
+        }
+
+        .result-head {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .answer-table,
+        .answer-table tbody,
+        .answer-table tr,
+        .answer-table th,
+        .answer-table td {
+          display: block;
+          width: 100%;
+        }
+
+        .answer-table tr {
+          padding: 12px 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .answer-table th,
+        .answer-table td {
+          padding: 0;
+          border-bottom: none;
+        }
+
+        .answer-table th {
+          margin-bottom: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand" aria-label="玄谕问天">
+          <span class="brand-mark" aria-hidden="true">玄</span>
+          <div class="brand-copy">
+            <small>XUAN ORACLE</small>
+            <strong>玄谕问天</strong>
+          </div>
+        </div>
+        <div class="top-actions">
+          <a class="ghost-link" href="/app">进入全量版</a>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <small>天门未启 只候一问</small>
+          <h1>问天</h1>
+          <p>
+            先把真正困住你的那一问写下。系统会在幕后自行择法、补问、合参，最后只把最该听的那句带回来。
+          </p>
+        </div>
+
+        <section class="ask-panel" aria-label="轻量问答入口">
+          <form id="askForm" class="ask-form">
+            <textarea
+              id="questionInput"
+              placeholder="例如：给男孩起名，需要根据生辰八字把五行、日主、喜用、可用字方向都分析一遍，再给出真正可用的名字。"
+              autocomplete="off"
+              autofocus
+            ></textarea>
+
+            <div class="chip-row" aria-label="快捷提问">
+              <button class="chip" type="button" data-question="给男孩起名，需要根据生辰八字把五行、日主、喜用、可用字方向都分析一遍，再给出真正可用的名字。">起名实算</button>
+              <button class="chip" type="button" data-question="我今年是否适合换城市发展，需要把时机、财运、事业节奏和居所风水一起看。">换城时机</button>
+              <button class="chip" type="button" data-question="这段关系还要不要继续，想看关系走势、现实阻力和我应该怎么做。">关系走势</button>
+            </div>
+
+            <div class="ask-actions">
+              <div id="statusText" class="status"><strong>当前状态：</strong>公网轻量入口已就位，可直接起问。</div>
+              <button id="askButton" class="primary" type="submit">启门问天</button>
+            </div>
+          </form>
+
+          <section id="resultShell" class="result-shell" aria-live="polite">
+            <article class="result-card">
+              <div class="result-head">
+                <h2>总谕</h2>
+                <span id="resultBadge" class="result-badge">正在候谕</span>
+              </div>
+              <p id="leadText" class="lead">结果会在这里显形。</p>
+            </article>
+
+            <article class="result-card">
+              <table class="answer-table" aria-label="结果详情">
+                <tbody>
+                  <tr>
+                    <th>继续补充</th>
+                    <td id="followUpText" class="empty">暂无。</td>
+                  </tr>
+                  <tr>
+                    <th>参与体系</th>
+                    <td id="systemsText" class="empty">暂无。</td>
+                  </tr>
+                  <tr>
+                    <th>综合摘要</th>
+                    <td id="summaryText" class="empty">暂无。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </article>
+
+            <div class="hint-grid">
+              <article class="result-card hint-card">
+                <strong>共识</strong>
+                <ul id="agreementsList" class="list"></ul>
+              </article>
+              <article class="result-card hint-card">
+                <strong>差异</strong>
+                <ul id="differencesList" class="list"></ul>
+              </article>
+              <article class="result-card hint-card">
+                <strong>提醒</strong>
+                <ul id="cautionsList" class="list"></ul>
+              </article>
+            </div>
+          </section>
+        </section>
+
+        <p class="footer-note">
+          当前页为公网轻量版入口。若需完整罗盘、神系总盘与全动效界面，可进入全量版。
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const refs = {
+        form: document.querySelector("#askForm"),
+        questionInput: document.querySelector("#questionInput"),
+        askButton: document.querySelector("#askButton"),
+        statusText: document.querySelector("#statusText"),
+        resultShell: document.querySelector("#resultShell"),
+        resultBadge: document.querySelector("#resultBadge"),
+        leadText: document.querySelector("#leadText"),
+        followUpText: document.querySelector("#followUpText"),
+        systemsText: document.querySelector("#systemsText"),
+        summaryText: document.querySelector("#summaryText"),
+        agreementsList: document.querySelector("#agreementsList"),
+        differencesList: document.querySelector("#differencesList"),
+        cautionsList: document.querySelector("#cautionsList"),
+      };
+
+      function setStatus(text, strong = "当前状态：") {
+        refs.statusText.innerHTML = `<strong>${strong}</strong>${text}`;
+      }
+
+      function setBusy(busy) {
+        refs.askButton.disabled = busy;
+        refs.askButton.textContent = busy ? "问谕推演中" : "启门问天";
+      }
+
+      function renderList(target, items, fallback = "暂无。") {
+        target.innerHTML = "";
+        const values = Array.isArray(items) && items.length ? items : [fallback];
+        values.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          target.appendChild(li);
+        });
+      }
+
+      function joinSystems(systems) {
+        if (!Array.isArray(systems) || !systems.length) return "暂无。";
+        return systems
+          .map((item) => item && (item.title || item.key || item.system))
+          .filter(Boolean)
+          .join("、");
+      }
+
+      function controllerSummary(controller) {
+        if (!controller || typeof controller !== "object") return "暂无。";
+        const parts = [];
+        if (controller.routingSummary) parts.push(controller.routingSummary);
+        if (Array.isArray(controller.missingInputs) && controller.missingInputs.length) {
+          const fields = controller.missingInputs
+            .map((item) => (item && typeof item === "object" ? item.field : item))
+            .filter(Boolean)
+            .join("、");
+          if (fields) parts.push(`仍缺：${fields}`);
+        }
+        return parts.join(" ") || "暂无。";
+      }
+
+      function resultModeLabel(mode) {
+        if (mode === "answered") return "已得结果";
+        if (mode === "needs_input") return "需要补充";
+        if (mode === "blocked") return "现实风险";
+        return "推演完成";
+      }
+
+      function showResult() {
+        refs.resultShell.classList.add("visible");
+      }
+
+      function createTimeoutSignal(ms) {
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(new Error("timeout")), ms);
+        return {
+          signal: controller.signal,
+          dispose() {
+            window.clearTimeout(timer);
+          },
+        };
+      }
+
+      async function askOracle(question) {
+        const timeout = createTimeoutSignal(18000);
+        try {
+          const response = await fetch("/api/oracle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question, model: "auto" }),
+            signal: timeout.signal,
+          });
+          const raw = await response.text();
+          const data = raw ? JSON.parse(raw) : {};
+          if (!response.ok) throw new Error(data.error || "请求失败");
+          return data;
+        } finally {
+          timeout.dispose();
+        }
+      }
+
+      function renderOracleResult(data) {
+        const controller = data.controller || data.oracle?.controller || {};
+        const finalAnswer = data.oracle?.final_answer || {};
+        const executionStatus = controller.executionStatus || "answered";
+        const lead =
+          finalAnswer.synthesis ||
+          controller.followUpPrompt ||
+          controller.routingSummary ||
+          "本轮没有形成可交付结果。";
+
+        refs.resultBadge.textContent = resultModeLabel(executionStatus);
+        refs.leadText.textContent = lead;
+        refs.followUpText.textContent = controller.followUpPrompt || "暂无。";
+        refs.systemsText.textContent = joinSystems(data.systems || []);
+        refs.summaryText.textContent = controllerSummary(controller);
+
+        renderList(refs.agreementsList, finalAnswer.agreements, "暂无共识。");
+        renderList(refs.differencesList, finalAnswer.differences, "暂无差异。");
+        renderList(refs.cautionsList, finalAnswer.cautions, "暂无额外提醒。");
+
+        showResult();
+
+        if (executionStatus === "answered") {
+          setStatus("总谕已经显形，可继续改问，或进入全量版查看完整界面。");
+          return;
+        }
+        if (executionStatus === "blocked") {
+          setStatus("当前问题涉及现实风险，先处理现实层面的事。");
+          return;
+        }
+        setStatus("系统已判断还缺少关键信息，请按提示继续补充。");
+      }
+
+      async function submitQuestion() {
+        const question = refs.questionInput.value.trim();
+        if (!question) {
+          setStatus("请先写下要问的事情。");
+          refs.questionInput.focus();
+          return;
+        }
+
+        setBusy(true);
+        setStatus("智能总控正在研判你的问题。");
+
+        try {
+          const data = await askOracle(question);
+          renderOracleResult(data);
+        } catch (error) {
+          const message = error && error.name === "AbortError"
+            ? "请求超时，请稍后重试。"
+            : (error && error.message) || "请求失败，请稍后重试。";
+          refs.resultBadge.textContent = "请求异常";
+          refs.leadText.textContent = message;
+          refs.followUpText.textContent = "暂无。";
+          refs.systemsText.textContent = "暂无。";
+          refs.summaryText.textContent = "暂无。";
+          renderList(refs.agreementsList, [], "暂无。");
+          renderList(refs.differencesList, [], "暂无。");
+          renderList(refs.cautionsList, [], "暂无。");
+          showResult();
+          setStatus(message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      refs.form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitQuestion();
+      });
+
+      refs.questionInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          submitQuestion();
+        }
+      });
+
+      document.querySelectorAll("[data-question]").forEach((button) => {
+        button.addEventListener("click", () => {
+          refs.questionInput.value = button.getAttribute("data-question") || "";
+          refs.questionInput.focus();
+          const end = refs.questionInput.value.length;
+          refs.questionInput.setSelectionRange(end, end);
+        });
+      });
+    </script>
+  </body>
+</html>
