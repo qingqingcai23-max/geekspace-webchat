@@ -8,6 +8,21 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2302040a'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%23c9a45b' stroke-width='3'/%3E%3Cpath d='M32 8 41 32 32 56 23 32Z' fill='%237edbd3'/%3E%3C/svg%3E"
     />
+    <script>
+      (function () {
+        const host = String(window.location.hostname || "").toLowerCase();
+        const isRemoteHost = host && host !== "localhost" && host !== "127.0.0.1";
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        const saveData = Boolean(connection && connection.saveData);
+        const effectiveType = String((connection && connection.effectiveType) || "").toLowerCase();
+        const lite =
+          isRemoteHost ||
+          saveData ||
+          /(?:slow-2g|2g|3g)/.test(effectiveType) ||
+          window.innerWidth <= 900;
+        document.documentElement.dataset.performanceMode = lite ? "lite" : "full";
+      })();
+    </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>

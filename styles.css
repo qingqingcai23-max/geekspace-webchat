@@ -1,6 +1,4 @@
-﻿@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap");
-
-:root {
+﻿:root {
   color-scheme: dark;
   --void: #02040a;
   --ink: #f7f0de;
@@ -12,6 +10,46 @@
   --glass: rgba(6, 9, 19, 0.7);
   --glass-heavy: rgba(4, 7, 16, 0.92);
   --line: rgba(221, 199, 141, 0.18);
+}
+
+html[data-performance-mode="lite"] .sanctum-mural,
+html[data-performance-mode="lite"] .scene::before,
+html[data-performance-mode="lite"] .scene::after,
+html[data-performance-mode="lite"] .final-chamber::before,
+html[data-performance-mode="lite"] .planet-guide-panel {
+  background-image: none !important;
+}
+
+html[data-performance-mode="lite"] .deep-vignette,
+html[data-performance-mode="lite"] .void-noise,
+html[data-performance-mode="lite"] .void-haze,
+html[data-performance-mode="lite"] .sanctum-vault,
+html[data-performance-mode="lite"] .sanctum-axis,
+html[data-performance-mode="lite"] .sanctum-pillars,
+html[data-performance-mode="lite"] .sanctum-dais,
+html[data-performance-mode="lite"] .celestial-grid,
+html[data-performance-mode="lite"] .ecliptic,
+html[data-performance-mode="lite"] .talisman-drift,
+html[data-performance-mode="lite"] .river-stage,
+html[data-performance-mode="lite"] .time-sea,
+html[data-performance-mode="lite"] .oracle-threshold,
+html[data-performance-mode="lite"] .home-hero-frame,
+html[data-performance-mode="lite"] .luopan-aura,
+html[data-performance-mode="lite"] .luopan-board,
+html[data-performance-mode="lite"] .luopan-needle {
+  display: none !important;
+}
+
+html[data-performance-mode="lite"] .planet-field,
+html[data-performance-mode="lite"] .compass-node,
+html[data-performance-mode="lite"] .planet-thread,
+html[data-performance-mode="lite"] .planet-crown,
+html[data-performance-mode="lite"] .planet-orbit,
+html[data-performance-mode="lite"] .planet-sphere,
+html[data-performance-mode="lite"] .planet-nameplate {
+  animation: none !important;
+  transition: none !important;
+  filter: none !important;
 }
 
 * {

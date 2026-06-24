@@ -137,6 +137,21 @@ if (homeInvocation) {
 const homeEyebrow = document.querySelector("#oracleCore .eyebrow");
 if (homeEyebrow) homeEyebrow.textContent = "天门未启 只候一问";
 
+function prefersLitePerformanceMode() {
+  if (document.documentElement.dataset.performanceMode === "lite") {
+    return true;
+  }
+  const host = String(window.location.hostname || "").toLowerCase();
+  const isRemoteHost = host && host !== "localhost" && host !== "127.0.0.1";
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const saveData = Boolean(connection && connection.saveData);
+  const effectiveType = String((connection && connection.effectiveType) || "").toLowerCase();
+  return isRemoteHost || saveData || /(?:slow-2g|2g|3g)/.test(effectiveType) || window.innerWidth <= 900;
+}
+
+const performanceMode = document.documentElement.dataset.performanceMode || (prefersLitePerformanceMode() ? "lite" : "full");
+document.documentElement.dataset.performanceMode = performanceMode;
+
 document.querySelectorAll("[data-suggestion]").forEach((button) => {
   button.addEventListener("click", () => {
     if (!els.questionInput) return;
@@ -2246,6 +2261,7 @@ async function loadProgress() {
     renderPlanets(systems);
     bindPlanetGuideNodes();
     renderProgress(systems);
+    progressLoaded = true;
     setStatus("诸术总盘已就位，你只需先问");
   } catch (error) {
     setStatus(error.message);
@@ -4087,6 +4103,7 @@ els.finalClose.addEventListener("click", () => {
 });
 
 els.progressToggle?.addEventListener("click", () => {
+  ensureProgressLoaded();
   els.progressDrawer?.classList.toggle("open");
 });
 
@@ -4123,12 +4140,36 @@ syncAskActionLabel();
 
 window.addEventListener("pointermove", moveRitualCursor);
 
-initStarfield();
-initRitualCanvas();
 bindDivinationWorkbench();
 bindPhysiognomyWorkbench();
 bindTarotWorkbench();
-loadModels();
-loadProgress();
+if (performanceMode !== "lite") {
+  loadModels();
+}
+
+function runDeferredBoot() {
+  if (performanceMode !== "lite") {
+    initStarfield();
+    initRitualCanvas();
+    loadProgress();
+  }
+}
+
+if ("requestIdleCallback" in window) {
+  window.requestIdleCallback(runDeferredBoot, { timeout: 1800 });
+} else {
+  window.setTimeout(runDeferredBoot, 600);
+}
+
+let progressLoaded = false;
+let progressLoading = false;
+
+function ensureProgressLoaded() {
+  if (progressLoaded || progressLoading) return;
+  progressLoading = true;
+  loadProgress().finally(() => {
+    progressLoading = false;
+  });
+}
 
 

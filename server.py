@@ -1408,7 +1408,7 @@ def disable_local_cache(response):
     cacheable_suffixes = (".js", ".css", ".html", ".json")
     path = (request.path or "").lower()
     if path == "/" or path.endswith(cacheable_suffixes):
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
@@ -1419,7 +1419,7 @@ def models():
     model_ids: list[str] = []
     remote_error = ""
     try:
-        response = requests.get(f"{BASE_URL}/models", headers=api_headers(), timeout=30)
+        response = requests.get(f"{BASE_URL}/models", headers=api_headers(), timeout=6)
         response.raise_for_status()
         payload = response.json()
         model_ids = sorted(
