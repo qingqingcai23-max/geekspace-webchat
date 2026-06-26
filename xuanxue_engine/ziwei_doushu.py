@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-import json
 from pathlib import Path
-import subprocess
 from typing import Any
 
+from .node_bridge import run_node_bridge
 
-BRIDGE_PATH = Path(__file__).with_name("ziwei_bridge.cjs")
+
+BRIDGE_PATH = Path(__file__).resolve().with_name("ziwei_bridge.cjs")
 
 KEY_PALACES = ["命宫", "官禄", "财帛", "夫妻", "迁移", "疾厄", "福德", "田宅"]
 
@@ -145,18 +145,7 @@ def current_cycle_focus(cycle: dict[str, Any]) -> str:
 
 
 def run_bridge(payload: dict[str, Any]) -> dict[str, Any]:
-    completed = subprocess.run(
-        ["node", str(BRIDGE_PATH)],
-        input=json.dumps(payload, ensure_ascii=False),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise ValueError((completed.stderr or completed.stdout or "ziwei bridge failed").strip())
-    return json.loads(completed.stdout)
+    return run_node_bridge(BRIDGE_PATH, payload, "ziwei bridge")
 
 
 def calculate_ziwei_doushu(data: ZiweiDoushuInput) -> dict[str, Any]:

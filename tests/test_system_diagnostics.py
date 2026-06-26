@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from server import benchmark_all_systems, local_answer_question, safety_screen, system_question_diagnostics
+from server import app, benchmark_all_systems, local_answer_question, safety_screen, system_question_diagnostics
 
 
 GOOD_DAY_QUESTION = "\u0032\u0030\u0032\u0036\u5e74\u0036\u6708\u0038\u53f7\uff0c\u662f\u4e2a\u597d\u65e5\u5b50\u5417\uff1f"
@@ -12,6 +13,64 @@ TIMING_QUESTION = "\u73b0\u5728\u662f2026-06-13 21:10\uff0c\u6211\u60f3\u95ee\u8
 
 
 class SystemDiagnosticsTests(unittest.TestCase):
+    def test_map_geocode_api_returns_location_payload(self):
+        client = app.test_client()
+        with patch("server.geocode_address") as mock_geocode, patch("server.static_map_url", return_value="https://example.com/static-map"):
+            from xuanxue_engine.map_provider_tencent import TencentMapResolvedLocation
+
+            mock_geocode.return_value = TencentMapResolvedLocation(
+                query="北京朝阳区",
+                address="北京市朝阳区",
+                title="朝阳区",
+                lat=39.9219,
+                lng=116.4436,
+                adcode="110105",
+                province="北京市",
+                city="北京市",
+                district="朝阳区",
+            )
+            response = client.get("/api/maps/geocode?address=北京朝阳区")
+            self.assertEqual(response.status_code, 200)
+            payload = response.get_json()
+            self.assertEqual(payload["address"], "北京市朝阳区")
+            self.assertEqual(payload["city"], "北京市")
+            self.assertEqual(payload["staticMapUrl"], "https://example.com/static-map")
+
+    def test_property_context_api_returns_external_environment_screening(self):
+        client = app.test_client()
+        with (
+            patch("server.geocode_address") as mock_geocode,
+            patch("server.static_map_url", return_value="https://example.com/static-map"),
+            patch("server.collect_nearby_poi_signals") as mock_collect_poi,
+        ):
+            from xuanxue_engine.map_provider_tencent import TencentMapResolvedLocation
+
+            mock_geocode.return_value = TencentMapResolvedLocation(
+                query="上海浦东某小区 12 栋 1802",
+                address="上海市浦东新区某小区 12 栋 1802",
+                title="某小区 12 栋 1802",
+                lat=31.2304,
+                lng=121.4737,
+                adcode="310115",
+                province="上海市",
+                city="上海市",
+                district="浦东新区",
+            )
+            mock_collect_poi.return_value = {
+                "funeral": [{"title": "福寿陵园", "distance": 700}],
+                "park": [{"title": "滨河公园", "distance": 300}],
+                "water": [{"title": "河道", "distance": 260}],
+            }
+            response = client.post(
+                "/api/maps/property-context",
+                json={"address": "上海浦东某小区 12 栋 1802", "facing_direction": "坐北朝南"},
+            )
+            self.assertEqual(response.status_code, 200)
+            payload = response.get_json()
+            self.assertIn("externalEnvironment", payload)
+            self.assertEqual(payload["externalEnvironment"]["verdict"], "caution")
+            self.assertIn("poiSummary", payload)
+
     def test_single_good_day_question_only_selects_date_selection(self):
         result = local_answer_question(GOOD_DAY_QUESTION)
         self.assertEqual([pack.key for pack in result["systems"]], ["date_selection"])
@@ -76,6 +135,14 @@ class SystemDiagnosticsTests(unittest.TestCase):
         self.assertEqual(controller["questionType"], "事业/财运问题")
         self.assertIn("bazi", selected_keys)
         self.assertIn("western_astrology", selected_keys)
+
+    def test_full_birth_chart_question_with_explicit_axes_prefers_bazi_full_chart_synthesis(self):
+        result = local_answer_question("我出生于1990-05-12 14:30，男，北京，想看我的性格、事业、财运、婚恋、健康和适合的发展方向。")
+        synthesis = result["result"]["final_answer"]["synthesis"]
+
+        self.assertIn("八字全盘看", synthesis)
+        self.assertIn("婚恋", synthesis)
+        self.assertIn("健康", synthesis)
 
     def test_short_name_generation_question_routes_to_name_studies_follow_up(self):
         result = local_answer_question("我想起个名字")

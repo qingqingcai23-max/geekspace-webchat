@@ -71,6 +71,19 @@ KUA_GROUP = {
     8: "west",
 }
 
+EXTERNAL_ENVIRONMENT_LABELS = {
+    "hospital": "医疗场所",
+    "funeral": "殡葬场所",
+    "school": "学校",
+    "mall": "商业综合体",
+    "park": "公园绿地",
+    "water": "水系",
+    "bridge": "桥梁",
+    "elevated": "高架/快速路",
+    "subway": "地铁站",
+    "government": "政府/公权力设施",
+}
+
 
 @dataclass(frozen=True)
 class FengShuiInput:
@@ -79,6 +92,7 @@ class FengShuiInput:
     birth_date: date | None = None
     gender: str = ""
     build_year: int | None = None
+    map_context: dict[str, Any] | None = None
 
 
 def normalize_gender(value: str) -> str:
@@ -150,6 +164,63 @@ def direction_quality(kua: int, facing_sector: str) -> tuple[str, str]:
     raise ValueError("unreachable direction state")
 
 
+def evaluate_external_environment(map_context: dict[str, Any] | None) -> dict[str, Any]:
+    context = map_context or {}
+    poi_summary = context.get("poi_summary") or {}
+    poi_hits = context.get("poi_hits") or {}
+
+    signals: list[str] = []
+    cautions: list[str] = []
+    supportive: list[str] = []
+    score = 0
+
+    for category, entries in poi_hits.items():
+        nearest = entries[0] if isinstance(entries, list) and entries else {}
+        distance = int(nearest.get("distance") or 0)
+        label = EXTERNAL_ENVIRONMENT_LABELS.get(category, category)
+        if category == "funeral":
+            cautions.append(f"{label}距离较近时，外局气场偏阴，需重点核实视线直冲与日常感受。")
+            score -= 4 if distance and distance <= 800 else 2
+        elif category == "hospital":
+            cautions.append(f"{label}较近时，人流与杂气偏重，宜再看主入口、窗向与夜间噪声。")
+            score -= 2 if distance and distance <= 800 else 1
+        elif category == "elevated":
+            cautions.append(f"{label}较近时，要防噪声、压迫感与路冲感。")
+            score -= 2 if distance and distance <= 600 else 1
+        elif category == "bridge":
+            cautions.append(f"{label}较近时，需核实是否形成直冲或反弓。")
+            score -= 1
+        elif category == "water":
+            supportive.append(f"周边能检出水系，可进一步核实是聚水还是反弓形态。")
+            score += 1
+        elif category == "park":
+            supportive.append(f"周边有{label}，通常有利于开阔度与缓冲带。")
+            score += 1
+        elif category == "school":
+            signals.append(f"周边有{label}，白天活力与通行频率通常较高。")
+        elif category == "mall":
+            signals.append(f"周边有{label}，生活便利度较好，但也要看人流与车流压力。")
+        elif category == "subway":
+            signals.append(f"周边有{label}，通勤便利，但需核实噪声与出入口冲射。")
+        elif category == "government":
+            signals.append(f"周边有{label}，宜结合道路组织与边界感一起看。")
+
+    verdict = "mixed"
+    if score >= 2:
+        verdict = "supportive"
+    elif score <= -2:
+        verdict = "caution"
+
+    return {
+        "verdict": verdict,
+        "score": score,
+        "signals": signals,
+        "supportive": supportive,
+        "cautions": cautions,
+        "poi_summary": poi_summary,
+    }
+
+
 def calculate_fengshui(data: FengShuiInput) -> dict[str, Any]:
     sector, degrees = parse_direction(data.facing_direction)
     gender = normalize_gender(data.gender)
@@ -162,6 +233,8 @@ def calculate_fengshui(data: FengShuiInput) -> dict[str, Any]:
         "degrees": degrees,
         "build_year": data.build_year,
     }
+    if data.map_context:
+        used_inputs["map_context"] = data.map_context
     risk_flags = [
         "This local fengshui engine currently computes sector, Eight Mansions matching, and period bucket only.",
         "Without an accurate floor plan and room-level layout, the result should be treated as a directional screening layer rather than a full audit.",
@@ -196,6 +269,28 @@ def calculate_fengshui(data: FengShuiInput) -> dict[str, Any]:
     primary_finding = f"朝向落在{sector_label}位。"
     supporting_signals = [f"房屋朝向归入{sector_label}位，这是根据当前提供的坐向直接换算出的结果。"]
     confidence = "low"
+
+    if data.map_context:
+        derived_factors["map_context"] = data.map_context
+        map_title = str(data.map_context.get("title") or data.map_context.get("address") or data.location_or_floorplan).strip()
+        supporting_signals.append(f"地图定位已命中：{map_title}。")
+        satellite_url = str(data.map_context.get("static_map_url") or "").strip()
+        if satellite_url:
+            supporting_signals.append("已生成地图预览，可用于补充外局观察。")
+        risk_flags.append("地图外局上下文已接入，但当前仍以地址级和朝向级筛查为主，未替代室内实勘。")
+        confidence = "medium" if confidence == "low" else confidence
+        external = evaluate_external_environment(data.map_context)
+        derived_factors["external_environment"] = external
+        for note in external.get("signals") or []:
+            supporting_signals.append(note)
+        for note in external.get("supportive") or []:
+            supporting_signals.append(note)
+        for note in external.get("cautions") or []:
+            risk_flags.append(note)
+        if external.get("verdict") == "supportive":
+            primary_finding = f"{primary_finding.rstrip('。')} 地图外局初筛偏向可用，但仍需结合室内布局复核。"
+        elif external.get("verdict") == "caution":
+            primary_finding = f"{primary_finding.rstrip('。')} 地图外局初筛显示周边干扰偏多，建议谨慎复核。"
 
     if data.birth_date and gender:
         kua = kua_number(data.birth_date.year, gender)

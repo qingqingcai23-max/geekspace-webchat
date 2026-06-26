@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
-import subprocess
 from typing import Any
 
 from .astro_common import resolve_birth_location
+from .node_bridge import run_node_bridge
 
 
-BRIDGE_PATH = Path(__file__).with_name("human_design_bridge.cjs")
+BRIDGE_PATH = Path(__file__).resolve().with_name("human_design_bridge.cjs")
 
 
 @dataclass(frozen=True)
@@ -24,18 +23,7 @@ class HumanDesignInput:
 
 
 def run_bridge(payload: dict[str, Any]) -> dict[str, Any]:
-    completed = subprocess.run(
-        ["node", str(BRIDGE_PATH)],
-        input=json.dumps(payload, ensure_ascii=False),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise ValueError((completed.stderr or completed.stdout or "human design bridge failed").strip())
-    return json.loads(completed.stdout)
+    return run_node_bridge(BRIDGE_PATH, payload, "human design bridge")
 
 
 def center_names(items: list[dict[str, Any]]) -> list[str]:

@@ -2581,7 +2581,11 @@ function renderSystemAnswerCards(answers, options = {}) {
       ? `仍缺：${answer.missing_inputs.join("、")}`
       : answer.used_local_calculation ? "已完成本地实算" : "当前仅给资料层判断";
     const namingProfile = answer?.naming_profile;
+    const rawResult = answer?.raw_result || {};
+    const fengshuiMapContext = rawResult?.derived_factors?.map_context || rawResult?.used_inputs?.map_context || null;
+    const fengshuiExternal = rawResult?.derived_factors?.external_environment || null;
     let namingBlock = "";
+    let fengshuiBlock = "";
     if (!compactNaming && namingProfile && Array.isArray(namingProfile.top_candidates) && namingProfile.top_candidates.length) {
       const baziSummary = namingProfile.bazi_summary || {};
       const strongest = Array.isArray(baziSummary.strongest_elements) && baziSummary.strongest_elements.length
@@ -2660,6 +2664,89 @@ function renderSystemAnswerCards(answers, options = {}) {
         </section>
       `;
     }
+    if ((answer.key === "fengshui" || answer.system === "风水") && fengshuiMapContext) {
+      const address = fengshuiMapContext.address || fengshuiMapContext.title || rawResult?.used_inputs?.location_or_floorplan || "";
+      const staticMapUrl = fengshuiMapContext.static_map_url || "";
+      const poiSummary = fengshuiMapContext.poi_summary || {};
+      const externalVerdict = String(fengshuiExternal?.verdict || "").trim();
+      const verdictLabel = {
+        supportive: "外局偏可用",
+        mixed: "外局需结合细节",
+        caution: "外局需谨慎复核",
+      }[externalVerdict] || "外局初筛";
+      const poiRows = Object.entries(poiSummary).slice(0, 6).map(([key, value]) => {
+        const labelMap = {
+          hospital: "医院",
+          funeral: "殡葬场所",
+          school: "学校",
+          mall: "商业综合体",
+          park: "公园绿地",
+          water: "水系",
+          bridge: "桥梁",
+          elevated: "高架/快速路",
+          subway: "地铁站",
+          government: "政府设施",
+        };
+        const item = value || {};
+        const count = item.count ?? 0;
+        const nearest = item.nearest_distance ?? item.nearestDistance;
+        return `
+          <div class="fengshui-poi-row">
+            <span>${labelMap[key] || key}</span>
+            <strong>${count}${nearest ? ` · 最近 ${nearest}m` : ""}</strong>
+          </div>
+        `;
+      }).join("");
+      const supportNotes = [
+        ...(Array.isArray(fengshuiExternal?.supportive) ? fengshuiExternal.supportive : []),
+        ...(Array.isArray(fengshuiExternal?.signals) ? fengshuiExternal.signals : []),
+      ].slice(0, 4);
+      const cautionNotes = Array.isArray(fengshuiExternal?.cautions) ? fengshuiExternal.cautions.slice(0, 4) : [];
+      fengshuiBlock = `
+        <section class="fengshui-map-panel">
+          <div class="fengshui-map-head">
+            <div>
+              <p class="fengshui-map-eyebrow">地图外局</p>
+              <h4>${escapeHtml(address || "地址已定位")}</h4>
+            </div>
+            <span class="fengshui-map-badge is-${escapeHtml(externalVerdict || "mixed")}">${escapeHtml(verdictLabel)}</span>
+          </div>
+          ${staticMapUrl ? `
+            <a class="fengshui-map-link" href="${escapeHtml(staticMapUrl)}" target="_blank" rel="noreferrer">
+              <img class="fengshui-map-image" src="${escapeHtml(staticMapUrl)}" alt="房屋地图预览" />
+            </a>
+          ` : ""}
+          ${poiRows ? `<div class="fengshui-poi-grid">${poiRows}</div>` : ""}
+          ${supportNotes.length ? `
+            <div class="fengshui-note-block">
+              <p class="fengshui-note-title">可用信号</p>
+              <ul>${supportNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+            </div>
+          ` : ""}
+          ${cautionNotes.length ? `
+            <div class="fengshui-note-block is-caution">
+              <p class="fengshui-note-title">谨慎点</p>
+              <ul>${cautionNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+            </div>
+          ` : ""}
+        </section>
+      `;
+    } else if (answer.key === "fengshui" || answer.system === "风水") {
+      fengshuiBlock = `
+        <section class="fengshui-map-panel is-empty">
+          <div class="fengshui-map-head">
+            <div>
+              <p class="fengshui-map-eyebrow">地图外局</p>
+              <h4>地图增强暂未启用</h4>
+            </div>
+            <span class="fengshui-map-badge">待配置</span>
+          </div>
+          <p class="fengshui-map-empty">
+            当前服务器还没有启用腾讯地图 key，所以这次只展示了朝向粗筛。地图定位、卫星预览和周边外局信号会在配置后自动出现。
+          </p>
+        </section>
+      `;
+    }
     card.innerHTML = `
       <div class="system-answer-head">
         <strong>${systemName}</strong>
@@ -2667,6 +2754,7 @@ function renderSystemAnswerCards(answers, options = {}) {
       </div>
       <p class="system-answer-verdict">${answer.verdict || "暂无直断结论"}</p>
       <p class="system-answer-detail">${answer.answer || "暂无详细说明"}</p>
+      ${fengshuiBlock}
       ${namingBlock}
       <p class="system-answer-meta">${missing}</p>
     `;

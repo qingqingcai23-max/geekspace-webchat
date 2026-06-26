@@ -10,6 +10,7 @@ from .bazi import BaziInput, calculate_bazi
 from .date_selection import DateSelectionInput, calculate_date_selection
 from .daoist_arts import DaoistArtsInput, calculate_daoist_arts
 from .fengshui import FengShuiInput, calculate_fengshui
+from .map_provider_tencent import collect_nearby_poi_signals, geocode_address, has_tencent_map_key, static_map_url
 from .human_design import HumanDesignInput, calculate_human_design
 from .kabbalah import KabbalahInput, calculate_kabbalah
 from .liu_ren import LiuRenInput, calculate_liu_ren
@@ -509,6 +510,45 @@ def infer_birth_context_payload(payload: dict[str, Any]) -> tuple[Any, str]:
     return details, birth_location
 
 
+def build_fengshui_map_context(location_text: str) -> dict[str, Any]:
+    cleaned = str(location_text or "").strip()
+    if not cleaned or not has_tencent_map_key():
+        return {}
+    resolved = geocode_address(cleaned)
+    static_url = static_map_url(
+        resolved.lat,
+        resolved.lng,
+        zoom=18,
+        width=960,
+        height=540,
+        scale=2,
+        markers=f"color:red|label:A|{resolved.lat},{resolved.lng}",
+    )
+    poi_hits = collect_nearby_poi_signals(resolved.lat, resolved.lng, radius=1500)
+    poi_summary = {
+        category: {
+            "count": len(entries),
+            "nearest_distance": min(int(item.get("distance") or 0) for item in entries) if entries else None,
+        }
+        for category, entries in poi_hits.items()
+    }
+    return {
+        "query": resolved.query,
+        "title": resolved.title,
+        "address": resolved.address,
+        "lat": resolved.lat,
+        "lng": resolved.lng,
+        "adcode": resolved.adcode,
+        "province": resolved.province,
+        "city": resolved.city,
+        "district": resolved.district,
+        "source": resolved.source,
+        "static_map_url": static_url,
+        "poi_summary": poi_summary,
+        "poi_hits": poi_hits,
+    }
+
+
 def calculate_system(system: str, payload: dict[str, Any]) -> tuple[dict[str, Any], int]:
     if system not in KNOWN_SYSTEMS:
         return {"error": f"Unknown system: {system}"}, 404
@@ -724,15 +764,22 @@ def calculate_system(system: str, payload: dict[str, Any]) -> tuple[dict[str, An
         raw_direction = str(payload.get("facing_direction") or parse_facing_direction_hint(question) or "")
         if not raw_direction:
             return {"error": "facing_direction is required for fengshui"}, 400
+        location_text = str(payload.get("location_or_floorplan") or payload.get("location") or question or "")
+        map_context = {}
+        try:
+            map_context = build_fengshui_map_context(location_text)
+        except Exception:
+            map_context = {}
         try:
             return (
                 calculate_fengshui(
                     FengShuiInput(
-                        location_or_floorplan=str(payload.get("location_or_floorplan") or payload.get("location") or question or ""),
+                        location_or_floorplan=location_text,
                         facing_direction=raw_direction,
                         birth_date=details.birth_datetime.date() if details.birth_datetime else parse_birth_date(str(payload.get("birth_date") or "")),
                         gender=str(payload.get("gender") or details.gender or ""),
                         build_year=parse_build_year(payload.get("build_year") or question),
+                        map_context=map_context or None,
                     )
                 ),
                 200,

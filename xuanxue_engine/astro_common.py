@@ -7,6 +7,8 @@ from typing import Any, Iterable
 
 from kerykeion import NatalAspects
 
+from .map_provider_tencent import geocode_address, has_tencent_map_key
+
 
 SIGN_FULL_NAMES = {
     "Ari": "Aries",
@@ -409,6 +411,25 @@ def resolve_birth_location(
                 source=str(spec["source"]),
                 approximate=bool(spec["approximate"]),
             )
+
+    if cleaned_location and has_tencent_map_key():
+        remote = geocode_address(cleaned_location)
+        resolved_timezone = provided_timezone or infer_timezone(
+            remote.address or cleaned_location,
+            remote.lat,
+            remote.lng,
+        )
+        if not resolved_timezone:
+            raise ValueError("timezone could not be inferred from the resolved map location.")
+        return ResolvedBirthLocation(
+            query=cleaned_location,
+            display_name=remote.address or remote.title or cleaned_location,
+            lat=float(remote.lat),
+            lng=float(remote.lng),
+            tz_str=resolved_timezone,
+            source=remote.source,
+            approximate=False,
+        )
 
     raise ValueError(
         "birth_location could not be resolved locally; provide a known city or explicit lat/lng with tz_str."

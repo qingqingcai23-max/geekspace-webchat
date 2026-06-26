@@ -1160,6 +1160,132 @@ button:disabled {
   line-height: 1.7;
 }
 
+.fengshui-map-panel {
+  margin: 14px 0 10px;
+  padding: 14px;
+  border: 1px solid rgba(126, 219, 211, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(6, 15, 23, 0.86), rgba(4, 10, 18, 0.82)),
+    radial-gradient(circle at top right, rgba(126, 219, 211, 0.08), transparent 36%);
+}
+
+.fengshui-map-panel.is-empty {
+  border-color: rgba(201, 164, 91, 0.18);
+  background:
+    linear-gradient(180deg, rgba(22, 16, 10, 0.5), rgba(8, 8, 14, 0.82)),
+    radial-gradient(circle at top right, rgba(201, 164, 91, 0.08), transparent 36%);
+}
+
+.fengshui-map-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fengshui-map-eyebrow {
+  margin: 0 0 4px;
+  color: rgba(126, 219, 211, 0.76);
+  font-size: 11px;
+}
+
+.fengshui-map-head h4 {
+  margin: 0;
+  color: rgba(247, 240, 222, 0.96);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.fengshui-map-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(126, 219, 211, 0.18);
+  color: rgba(126, 219, 211, 0.94);
+  background: rgba(126, 219, 211, 0.08);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.fengshui-map-badge.is-caution {
+  border-color: rgba(201, 164, 91, 0.2);
+  color: rgba(235, 201, 124, 0.94);
+  background: rgba(201, 164, 91, 0.08);
+}
+
+.fengshui-map-link {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.fengshui-map-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.fengshui-poi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fengshui-poi-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(204, 214, 232, 0.9);
+  font-size: 12px;
+}
+
+.fengshui-poi-row strong {
+  color: rgba(247, 240, 222, 0.96);
+  font-weight: 600;
+}
+
+.fengshui-note-block {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 219, 211, 0.12);
+  background: rgba(126, 219, 211, 0.04);
+}
+
+.fengshui-note-block.is-caution {
+  border-color: rgba(201, 164, 91, 0.18);
+  background: rgba(201, 164, 91, 0.05);
+}
+
+.fengshui-note-title {
+  margin: 0 0 6px;
+  color: rgba(247, 240, 222, 0.94);
+  font-size: 12px;
+}
+
+.fengshui-note-block ul {
+  margin: 0;
+  padding-left: 18px;
+  color: rgba(190, 200, 216, 0.9);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.fengshui-map-empty {
+  margin: 0;
+  color: rgba(197, 204, 216, 0.88);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
 .naming-ritual-card {
   position: relative;
   margin: 14px 0 10px;

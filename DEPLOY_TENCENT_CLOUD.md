@@ -54,6 +54,13 @@ cp .env.example .env
 nano .env
 ```
 
+至少填写：
+
+```bash
+GEEKSPACE_API_KEY=your-real-key
+TENCENT_MAP_KEY=your-tencent-map-key
+```
+
 ## 六、启动项目
 
 ```bash
@@ -100,3 +107,4 @@ sudo ss -lntp | grep -E ':80|:8080'
 1. 腾讯云防火墙是否放行 `80`
 2. 服务器系统防火墙是否拦截
 3. `.env` 里的 `GEEKSPACE_API_KEY` 是否已正确填写
+4. `.env` 里的 `TENCENT_MAP_KEY` 是否已正确填写

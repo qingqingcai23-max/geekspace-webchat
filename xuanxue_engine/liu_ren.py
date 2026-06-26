@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
-import subprocess
 from typing import Any
 
+from .node_bridge import run_node_bridge
 
-BRIDGE_PATH = Path(__file__).with_name("daliuren_bridge.mjs")
+
+BRIDGE_PATH = Path(__file__).resolve().with_name("daliuren_bridge.mjs")
 
 
 @dataclass(frozen=True)
@@ -31,18 +31,7 @@ def normalize_gender(value: str) -> str:
 
 
 def run_bridge(payload: dict[str, Any]) -> dict[str, Any]:
-    completed = subprocess.run(
-        ["node", str(BRIDGE_PATH)],
-        input=json.dumps(payload, ensure_ascii=False),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise ValueError((completed.stderr or completed.stdout or "daliuren bridge failed").strip())
-    return json.loads(completed.stdout)
+    return run_node_bridge(BRIDGE_PATH, payload, "daliuren bridge")
 
 
 def transmission_entry(label: str, values: list[str]) -> dict[str, str]:

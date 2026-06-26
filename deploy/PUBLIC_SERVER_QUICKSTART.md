@@ -24,6 +24,7 @@ Set:
 
 ```bash
 GEEKSPACE_API_KEY=your-real-key
+TENCENT_MAP_KEY=your-tencent-map-key
 ```
 
 Then start:

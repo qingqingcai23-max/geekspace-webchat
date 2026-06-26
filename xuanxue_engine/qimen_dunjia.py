@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
-import subprocess
 from typing import Any
 
+from .node_bridge import run_node_bridge
 
-BRIDGE_PATH = Path(__file__).with_name("qimen_bridge.mjs")
+
+BRIDGE_PATH = Path(__file__).resolve().with_name("qimen_bridge.mjs")
 
 
 @dataclass(frozen=True)
@@ -23,18 +23,7 @@ class QimenDunjiaInput:
 
 
 def run_bridge(payload: dict[str, Any]) -> dict[str, Any]:
-    completed = subprocess.run(
-        ["node", str(BRIDGE_PATH)],
-        input=json.dumps(payload, ensure_ascii=False),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise ValueError((completed.stderr or completed.stdout or "qimen bridge failed").strip())
-    return json.loads(completed.stdout)
+    return run_node_bridge(BRIDGE_PATH, payload, "qimen bridge")
 
 
 def active_palaces(palaces: list[dict[str, Any]]) -> list[int]:

@@ -12,6 +12,8 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from xuanxue_engine import BaziInput, IMPLEMENTED_SYSTEMS, calculate_bazi, calculate_system
 from xuanxue_engine import registry as engine_registry
+from xuanxue_engine.fengshui import evaluate_external_environment
+from xuanxue_engine.map_provider_tencent import collect_nearby_poi_signals, geocode_address, has_tencent_map_key, place_search, static_map_url
 from xuanxue_engine.parsing import parse_birth_details, parse_datetime_from_text
 
 
@@ -1452,6 +1454,7 @@ def health():
         {
             "ok": True,
             "hasKey": bool(geekspace_key()),
+            "hasTencentMapKey": has_tencent_map_key(),
             "baseUrl": BASE_URL,
             "vaultReady": VAULT_DIR.exists(),
             "vaultDir": str(VAULT_DIR),
@@ -1460,6 +1463,133 @@ def health():
             "engineImplementedCount": len(engine_registry.IMPLEMENTED_SYSTEMS),
         }
     )
+
+
+@app.get("/api/maps/geocode")
+def map_geocode():
+    address = str(request.args.get("address") or "").strip()
+    region = str(request.args.get("region") or "").strip()
+    if not address:
+        return jsonify({"error": "address is required"}), 400
+    try:
+        resolved = geocode_address(address, region=region)
+        return jsonify(
+            {
+                "query": resolved.query,
+                "title": resolved.title,
+                "address": resolved.address,
+                "lat": resolved.lat,
+                "lng": resolved.lng,
+                "adcode": resolved.adcode,
+                "province": resolved.province,
+                "city": resolved.city,
+                "district": resolved.district,
+                "source": resolved.source,
+                "staticMapUrl": static_map_url(
+                    resolved.lat,
+                    resolved.lng,
+                    zoom=18,
+                    width=960,
+                    height=540,
+                    scale=2,
+                    markers=f"color:red|label:A|{resolved.lat},{resolved.lng}",
+                ),
+            }
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.get("/api/maps/search")
+def map_search():
+    keyword = str(request.args.get("keyword") or "").strip()
+    region = str(request.args.get("region") or "").strip()
+    if not keyword:
+        return jsonify({"error": "keyword is required"}), 400
+    try:
+        return jsonify({"results": place_search(keyword, region=region)})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/maps/property-context")
+def map_property_context():
+    payload: dict[str, Any] = request.get_json(force=True, silent=False) or {}
+    address = str(payload.get("address") or payload.get("location") or "").strip()
+    facing_direction = str(payload.get("facing_direction") or payload.get("facingDirection") or "").strip()
+    if not address:
+        return jsonify({"error": "address is required"}), 400
+    try:
+        resolved = geocode_address(address, region=str(payload.get("region") or "").strip())
+        poi_hits = collect_nearby_poi_signals(
+            resolved.lat,
+            resolved.lng,
+            radius=int(payload.get("radius") or 1500),
+        )
+        poi_summary = {
+            category: {
+                "count": len(entries),
+                "nearestDistance": min(int(item.get("distance") or 0) for item in entries) if entries else None,
+            }
+            for category, entries in poi_hits.items()
+        }
+        static_url = static_map_url(
+            resolved.lat,
+            resolved.lng,
+            zoom=int(payload.get("zoom") or 18),
+            width=int(payload.get("width") or 960),
+            height=int(payload.get("height") or 540),
+            scale=int(payload.get("scale") or 2),
+            markers=f"color:red|label:A|{resolved.lat},{resolved.lng}",
+        )
+        external = evaluate_external_environment(
+            {
+                "poi_summary": {
+                    key: {
+                        "count": value["count"],
+                        "nearest_distance": value["nearestDistance"],
+                    }
+                    for key, value in poi_summary.items()
+                },
+                "poi_hits": poi_hits,
+            }
+        )
+        summary_parts = [
+            f"已定位到{resolved.address or resolved.title or address}。",
+            "当前可先结合地图做外局筛查：道路、水系、桥、高架、楼间距、周边大型设施与开阔度。",
+        ]
+        if facing_direction:
+            summary_parts.append(f"当前记录的朝向是{facing_direction}，可与卫星俯视图交叉核对。")
+        if external.get("verdict") == "supportive":
+            summary_parts.append("从第一版外局筛查看，周边环境偏向可用。")
+        elif external.get("verdict") == "caution":
+            summary_parts.append("从第一版外局筛查看，周边环境有几个需要谨慎复核的点。")
+        return jsonify(
+            {
+                "address": resolved.address,
+                "title": resolved.title,
+                "location": {
+                    "lat": resolved.lat,
+                    "lng": resolved.lng,
+                },
+                "adcode": resolved.adcode,
+                "province": resolved.province,
+                "city": resolved.city,
+                "district": resolved.district,
+                "staticMapUrl": static_url,
+                "poiSummary": poi_summary,
+                "poiHits": poi_hits,
+                "externalEnvironment": external,
+                "summary": " ".join(summary_parts),
+                "nextSignals": [
+                    "补楼栋朝向或罗盘度数",
+                    "补户型图或室内视频",
+                    "结合外局与室内布局做完整风水判断",
+                ],
+            }
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.get("/api/progress")
@@ -4237,8 +4367,10 @@ def cn_join(values: list[str], sep: str = "、") -> str:
 
 WEALTH_MARKERS = ("财运", "赚钱", "收入", "进财", "破财", "副业", "回款", "现金流", "投资", "存钱", "花销", "财帛宫")
 CAREER_PATH_MARKERS = ("事业", "工作", "职业", "创业", "发展", "升职", "跳槽", "岗位", "项目", "官禄宫")
-RELATIONSHIP_TOPIC_MARKERS = ("婚姻", "感情", "恋爱", "伴侣", "对象", "复合", "关系", "相处", "夫妻宫")
+RELATIONSHIP_TOPIC_MARKERS = ("婚姻", "婚恋", "感情", "恋爱", "伴侣", "对象", "复合", "关系", "相处", "夫妻宫")
 IDENTITY_TOPIC_MARKERS = ("性格", "天赋", "适合什么方向", "适合做什么", "我是什么样", "我的特点", "决策方式", "行动风格", "人类图类型", "权威", "命宫", "气场")
+HEALTH_TOPIC_MARKERS = ("健康", "身体", "作息", "精力", "恢复", "睡眠", "状态")
+FULL_CHART_MARKERS = ("完整命盘", "全面分析", "综合命盘", "全盘", "命盘总评", "完整分析", "整体命盘")
 
 
 def question_topic_focus(question: str) -> set[str]:
@@ -4255,7 +4387,14 @@ def question_topic_focus(question: str) -> set[str]:
         focuses.add("naming")
     if any(token in question for token in IDENTITY_TOPIC_MARKERS):
         focuses.add("identity_topic")
+    if any(token in question for token in HEALTH_TOPIC_MARKERS):
+        focuses.add("health")
+    if any(token in question for token in FULL_CHART_MARKERS):
+        focuses.update({"wealth", "career_path", "relationship_topic", "identity_topic", "health"})
     return focuses
+
+
+FULL_CHART_FOCUS_SET = {"wealth", "career_path", "relationship_topic", "identity_topic", "health"}
 
 
 def explicit_coverage_focus(question: str) -> set[str]:
@@ -4272,6 +4411,7 @@ TOPIC_ALIAS_MAP = {
     "career_path": "career",
     "relationship_topic": "relationship",
     "identity_topic": "identity",
+    "health": "health",
 }
 
 
@@ -4329,6 +4469,15 @@ TOPIC_RESULT_MARKERS: dict[str, tuple[str, ...]] = {
         "权威",
         "轮廓",
         "行动风格",
+    ),
+    "health": (
+        "健康",
+        "身体",
+        "精力",
+        "作息",
+        "恢复",
+        "睡眠",
+        "状态",
     ),
     "naming": (
         "名字",
@@ -4499,6 +4648,7 @@ TOPIC_PROMPT_LABELS = {
     "career": "事业/职业问题",
     "relationship": "婚姻/感情问题",
     "identity": "性格/方向问题",
+    "health": "健康/状态问题",
     "naming": "起名/命名问题",
     "timing": "时机/下一步问题",
     "space": "居住/空间问题",
@@ -4800,6 +4950,7 @@ def count_labels(values: list[str], targets: set[str]) -> int:
 def top_system_priority(key: str, question: str, tags: set[str], verdict: str = "") -> int:
     score = 0
     topics = normalized_question_topics(question, tags)
+    focus = question_topic_focus(question)
     system_mentions = detect_system_mentions(question)
     for topic in topics:
         score += TOPIC_SYSTEM_PRIORITY.get(topic, {}).get(key, 0)
@@ -4815,8 +4966,21 @@ def top_system_priority(key: str, question: str, tags: set[str], verdict: str = 
         score += 40
     if "wealth" in topics and key in {"bazi", "ziwei_doushu"}:
         score += 12
+    if "health" in topics and key in {"bazi", "ziwei_doushu", "western_astrology", "vedic_astrology"}:
+        score += 10
     if "wealth" in topics and key == "western_astrology":
         score -= 4
+    if any(token in question for token in FULL_CHART_MARKERS) and key in {"bazi", "ziwei_doushu", "western_astrology", "vedic_astrology"}:
+        score += 18
+    if any(token in question for token in FULL_CHART_MARKERS) and key in {"human_design", "numerology"}:
+        score -= 8
+    if FULL_CHART_FOCUS_SET <= focus:
+        if key in {"bazi", "ziwei_doushu"}:
+            score += 18
+        elif key in {"western_astrology", "vedic_astrology"}:
+            score += 8
+        elif key in {"human_design", "numerology"}:
+            score -= 8
     if key == "onmyodo" and "onmyodo" in system_mentions:
         score += 22
     if key == "onmyodo" and any(token in question for token in ("出行", "出差", "旅行", "方位", "方向", "禁忌", "改期", "鬼门")):
@@ -6765,6 +6929,10 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         weakest = "、".join(summary.get("weakest_elements") or [])
         ten_gods = result.get("ten_gods") or {}
         hidden_ten_gods = result.get("hidden_ten_gods") or {}
+        overview = result.get("overview") or {}
+        strength = str(result.get("day_master_strength") or "")
+        favorable = "、".join(result.get("favorable_elements") or [])
+        caution_elements = "、".join(result.get("caution_elements") or [])
         focus = question_topic_focus(question)
         direct_wealth_count = count_labels(list(ten_gods.values()), {"正财", "偏财"})
         hidden_wealth_count = sum(
@@ -6781,6 +6949,25 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
             for values in hidden_ten_gods.values()
             if isinstance(values, list)
         )
+        if any(token in question for token in FULL_CHART_MARKERS) or {"wealth", "career_path", "relationship_topic", "identity_topic", "health"} <= focus:
+            axis_parts = [
+                trim_reply_text(overview.get("personality")),
+                trim_reply_text(overview.get("career")),
+                trim_reply_text(overview.get("wealth")),
+                trim_reply_text(overview.get("relationship")),
+                trim_reply_text(overview.get("health")),
+                trim_reply_text(overview.get("direction")),
+            ]
+            lead = (
+                f"八字全盘看，这盘日主{day_master.get('stem', '')}，五行呈现{strongest or '未明'}偏强、{weakest or '未明'}偏弱，"
+                f"整体更接近{'身强取泄耗财官' if strength == 'strong' else '身弱先扶身印比' if strength == 'weak' else '中和取流通'}的结构。"
+            )
+            if favorable or caution_elements:
+                lead += (
+                    f" 现阶段更有利的发力元素偏向{favorable or '未明'}，"
+                    f"需要少硬扛的部分偏在{caution_elements or '未明'}。"
+                )
+            return " ".join(part for part in [lead] + axis_parts if part).strip()
         if "wealth" in focus:
             source_parts: list[str] = []
             risk_parts: list[str] = []
@@ -8208,6 +8395,15 @@ def local_system_answer(pack: DossierPack, question: str, tags: set[str]) -> dic
     answer_text = re.sub(r"([。；;,，])\1+", r"\1", " ".join(item for item in answer_parts if item))
     answer_text = re.sub(r"。{2,}", "。", answer_text)
     extra_payload: dict[str, Any] = {}
+    if result and pack.key == "fengshui":
+        extra_payload["raw_result"] = {
+            "used_inputs": result.get("used_inputs") or {},
+            "derived_factors": result.get("derived_factors") or {},
+            "primary_finding": result.get("primary_finding") or "",
+            "supporting_signals": result.get("supporting_signals") or [],
+            "risk_flags": result.get("risk_flags") or [],
+            "time_window": result.get("time_window") or "",
+        }
     if pack.key == "name_studies" and result and result.get("generated_candidates"):
         used = result.get("used_inputs") or {}
         birth_info = str(used.get("birth_info") or "").strip()

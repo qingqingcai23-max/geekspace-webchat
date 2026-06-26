@@ -12,3 +12,4 @@ services:
       HOST: 0.0.0.0
       GEEKSPACE_VAULT_DIR: /app/runtime/xuanxue-knowledge-vault
       GEEKSPACE_API_KEY: ${GEEKSPACE_API_KEY}
+      TENCENT_MAP_KEY: ${TENCENT_MAP_KEY}

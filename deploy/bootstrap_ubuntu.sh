@@ -41,6 +41,7 @@ if grep -q "replace-with-your-real-key" .env 2>/dev/null; then
 
 Replace:
   GEEKSPACE_API_KEY=replace-with-your-real-key
+  TENCENT_MAP_KEY=replace-with-your-tencent-map-key
 
 After saving, run:
   cd /opt/geekspace-webchat

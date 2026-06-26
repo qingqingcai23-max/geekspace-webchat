@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS node_modules
+FROM node:22-bookworm-slim AS node_runtime
 
 WORKDIR /app
 
@@ -19,7 +19,8 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY --from=node_modules /app/node_modules ./node_modules
+COPY --from=node_runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node_runtime /app/node_modules ./node_modules
 COPY . .
 
 EXPOSE 8080
