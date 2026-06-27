@@ -13,7 +13,14 @@ from flask import Flask, jsonify, request, send_from_directory
 from xuanxue_engine import BaziInput, IMPLEMENTED_SYSTEMS, calculate_bazi, calculate_system
 from xuanxue_engine import registry as engine_registry
 from xuanxue_engine.fengshui import evaluate_external_environment
-from xuanxue_engine.map_provider_tencent import collect_nearby_poi_signals, geocode_address, has_tencent_map_key, place_search, static_map_url
+from xuanxue_engine.map_provider_tencent import (
+    collect_nearby_poi_signals,
+    geocode_address,
+    has_tencent_map_key,
+    is_quota_exceeded_error,
+    place_search,
+    static_map_url,
+)
 from xuanxue_engine.parsing import parse_birth_details, parse_datetime_from_text
 
 
@@ -1521,11 +1528,20 @@ def map_property_context():
         return jsonify({"error": "address is required"}), 400
     try:
         resolved = geocode_address(address, region=str(payload.get("region") or "").strip())
-        poi_hits = collect_nearby_poi_signals(
-            resolved.lat,
-            resolved.lng,
-            radius=int(payload.get("radius") or 1500),
-        )
+        map_status = {"poiSearch": "ok", "warnings": []}
+        try:
+            poi_hits = collect_nearby_poi_signals(
+                resolved.lat,
+                resolved.lng,
+                radius=int(payload.get("radius") or 1500),
+            )
+        except Exception as exc:
+            if is_quota_exceeded_error(exc):
+                poi_hits = {}
+                map_status["poiSearch"] = "quota_exceeded"
+                map_status["warnings"].append("腾讯地图周边检索今日配额已达上限，已降级为仅返回定位与静态图。")
+            else:
+                raise
         poi_summary = {
             category: {
                 "count": len(entries),
@@ -1590,6 +1606,106 @@ def map_property_context():
         )
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+def _map_property_context_with_fallback():
+    payload: dict[str, Any] = request.get_json(force=True, silent=False) or {}
+    address = str(payload.get("address") or payload.get("location") or "").strip()
+    facing_direction = str(payload.get("facing_direction") or payload.get("facingDirection") or "").strip()
+    if not address:
+        return jsonify({"error": "address is required"}), 400
+    try:
+        resolved = geocode_address(address, region=str(payload.get("region") or "").strip())
+        map_status = {"poiSearch": "ok", "warnings": []}
+        try:
+            poi_hits = collect_nearby_poi_signals(
+                resolved.lat,
+                resolved.lng,
+                radius=int(payload.get("radius") or 1500),
+            )
+        except Exception as exc:
+            if is_quota_exceeded_error(exc):
+                poi_hits = {}
+                map_status["poiSearch"] = "quota_exceeded"
+                map_status["warnings"].append(
+                    "\u817e\u8baf\u5730\u56fe\u5468\u8fb9\u68c0\u7d22\u4eca\u65e5\u914d\u989d\u5df2\u8fbe\u4e0a\u9650\uff0c\u5df2\u964d\u7ea7\u4e3a\u4ec5\u8fd4\u56de\u5b9a\u4f4d\u4e0e\u9759\u6001\u56fe\u3002"
+                )
+            else:
+                raise
+        poi_summary = {
+            category: {
+                "count": len(entries),
+                "nearestDistance": min(int(item.get("distance") or 0) for item in entries) if entries else None,
+            }
+            for category, entries in poi_hits.items()
+        }
+        static_url = static_map_url(
+            resolved.lat,
+            resolved.lng,
+            zoom=int(payload.get("zoom") or 18),
+            width=int(payload.get("width") or 960),
+            height=int(payload.get("height") or 540),
+            scale=int(payload.get("scale") or 2),
+            markers=f"color:red|label:A|{resolved.lat},{resolved.lng}",
+        )
+        external = evaluate_external_environment(
+            {
+                "poi_summary": {
+                    key: {
+                        "count": value["count"],
+                        "nearest_distance": value["nearestDistance"],
+                    }
+                    for key, value in poi_summary.items()
+                },
+                "poi_hits": poi_hits,
+            }
+        )
+        summary_parts = [
+            f"\u5df2\u5b9a\u4f4d\u5230{resolved.address or resolved.title or address}\u3002",
+            "\u5f53\u524d\u53ef\u5148\u7ed3\u5408\u5730\u56fe\u505a\u5916\u5c40\u7b5b\u67e5\uff1a\u9053\u8def\u3001\u6c34\u7cfb\u3001\u6865\u3001\u9ad8\u67b6\u3001\u697c\u95f4\u8ddd\u3001\u5468\u8fb9\u5927\u578b\u8bbe\u65bd\u4e0e\u5f00\u9614\u5ea6\u3002",
+        ]
+        if facing_direction:
+            summary_parts.append(
+                f"\u5f53\u524d\u8bb0\u5f55\u7684\u671d\u5411\u662f{facing_direction}\uff0c\u53ef\u4e0e\u536b\u661f\u4fef\u89c6\u56fe\u4ea4\u53c9\u6821\u5bf9\u3002"
+            )
+        if map_status["poiSearch"] == "quota_exceeded":
+            summary_parts.append(
+                "\u5468\u8fb9 POI \u5916\u5c40\u68c0\u7d22\u56e0\u817e\u8baf\u5730\u56fe\u5f53\u65e5\u914d\u989d\u5df2\u6ee1\u6682\u672a\u5b8c\u6210\uff0c\u5f53\u524d\u53ef\u5148\u4f9d\u636e\u5b9a\u4f4d\u4e0e\u536b\u661f\u89c6\u89d2\u505a\u521d\u6b65\u5916\u5c40\u5224\u65ad\u3002"
+            )
+        if external.get("verdict") == "supportive":
+            summary_parts.append("\u4ece\u7b2c\u4e00\u7248\u5916\u5c40\u7b5b\u67e5\u770b\uff0c\u5468\u8fb9\u73af\u5883\u504f\u5411\u53ef\u7528\u3002")
+        elif external.get("verdict") == "caution":
+            summary_parts.append("\u4ece\u7b2c\u4e00\u7248\u5916\u5c40\u7b5b\u67e5\u770b\uff0c\u5468\u8fb9\u73af\u5883\u6709\u51e0\u4e2a\u9700\u8981\u8c28\u614e\u590d\u6838\u7684\u70b9\u3002")
+        return jsonify(
+            {
+                "address": resolved.address,
+                "title": resolved.title,
+                "location": {
+                    "lat": resolved.lat,
+                    "lng": resolved.lng,
+                },
+                "adcode": resolved.adcode,
+                "province": resolved.province,
+                "city": resolved.city,
+                "district": resolved.district,
+                "staticMapUrl": static_url,
+                "poiSummary": poi_summary,
+                "poiHits": poi_hits,
+                "mapStatus": map_status,
+                "externalEnvironment": external,
+                "summary": " ".join(summary_parts),
+                "nextSignals": [
+                    "\u8865\u697c\u680b\u671d\u5411\u6216\u7f57\u76d8\u5ea6\u6570",
+                    "\u8865\u6237\u578b\u56fe\u6216\u5ba4\u5185\u89c6\u9891",
+                    "\u7ed3\u5408\u5916\u5c40\u4e0e\u5ba4\u5185\u5e03\u5c40\u505a\u5b8c\u6574\u98ce\u6c34\u5224\u65ad",
+                ],
+            }
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+app.view_functions["map_property_context"] = _map_property_context_with_fallback
 
 
 @app.get("/api/progress")

@@ -10,7 +10,13 @@ from .bazi import BaziInput, calculate_bazi
 from .date_selection import DateSelectionInput, calculate_date_selection
 from .daoist_arts import DaoistArtsInput, calculate_daoist_arts
 from .fengshui import FengShuiInput, calculate_fengshui
-from .map_provider_tencent import collect_nearby_poi_signals, geocode_address, has_tencent_map_key, static_map_url
+from .map_provider_tencent import (
+    collect_nearby_poi_signals,
+    geocode_address,
+    has_tencent_map_key,
+    is_quota_exceeded_error,
+    static_map_url,
+)
 from .human_design import HumanDesignInput, calculate_human_design
 from .kabbalah import KabbalahInput, calculate_kabbalah
 from .liu_ren import LiuRenInput, calculate_liu_ren
@@ -524,7 +530,16 @@ def build_fengshui_map_context(location_text: str) -> dict[str, Any]:
         scale=2,
         markers=f"color:red|label:A|{resolved.lat},{resolved.lng}",
     )
-    poi_hits = collect_nearby_poi_signals(resolved.lat, resolved.lng, radius=1500)
+    map_status = {"poiSearch": "ok", "warnings": []}
+    try:
+        poi_hits = collect_nearby_poi_signals(resolved.lat, resolved.lng, radius=1500)
+    except Exception as exc:
+        if is_quota_exceeded_error(exc):
+            poi_hits = {}
+            map_status["poiSearch"] = "quota_exceeded"
+            map_status["warnings"].append("Tencent map nearby search quota exceeded; map context was downgraded to geocode plus static map.")
+        else:
+            raise
     poi_summary = {
         category: {
             "count": len(entries),
@@ -546,6 +561,7 @@ def build_fengshui_map_context(location_text: str) -> dict[str, Any]:
         "static_map_url": static_url,
         "poi_summary": poi_summary,
         "poi_hits": poi_hits,
+        "map_status": map_status,
     }
 
 

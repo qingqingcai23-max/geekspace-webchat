@@ -24,6 +24,16 @@ class TencentMapResolvedLocation:
     source: str = "tencent-geocoder"
 
 
+@dataclass(frozen=True)
+class TencentMapApiError(Exception):
+    message: str
+    status: int | None = None
+    raw_payload: dict[str, Any] | None = None
+
+    def __str__(self) -> str:
+        return self.message
+
+
 POI_CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "hospital": ("医院", "诊所", "急救", "卫生服务中心"),
     "funeral": ("殡仪馆", "公墓", "陵园", "骨灰堂"),
@@ -51,6 +61,21 @@ def has_tencent_map_key() -> bool:
     return bool(tencent_map_key())
 
 
+def is_quota_exceeded_error(exc: Exception) -> bool:
+    if isinstance(exc, TencentMapApiError):
+        message = exc.message
+    else:
+        message = str(exc or "")
+    normalized = message.lower()
+    return (
+        "达到上限" in message
+        or "调用量已达到上限" in message
+        or "quota" in normalized
+        or "limit exceeded" in normalized
+        or "over the quota" in normalized
+    )
+
+
 def _request(path: str, params: dict[str, Any], timeout: float = 8.0) -> dict[str, Any]:
     key = tencent_map_key()
     if not key:
@@ -63,7 +88,7 @@ def _request(path: str, params: dict[str, Any], timeout: float = 8.0) -> dict[st
     status = int(payload.get("status", -1))
     if status != 0:
         message = str(payload.get("message") or "Tencent map API request failed.")
-        raise ValueError(message)
+        raise TencentMapApiError(message=message, status=status, raw_payload=payload)
     return payload
 
 
@@ -134,7 +159,9 @@ def collect_nearby_poi_signals(lat: float, lng: float, radius: int = 1500) -> di
         for keyword in keywords:
             try:
                 entries = nearby_search(lat, lng, keyword, radius=radius, page_size=6)
-            except Exception:
+            except Exception as exc:
+                if is_quota_exceeded_error(exc):
+                    raise
                 entries = []
             for item in entries:
                 uid = str(item.get("id") or item.get("title") or "")

@@ -101,6 +101,39 @@ class SystemDiagnosticsTests(unittest.TestCase):
             self.assertEqual(payload["externalEnvironment"]["verdict"], "caution")
             self.assertIn("poiSummary", payload)
 
+    def test_property_context_api_degrades_when_tencent_poi_quota_is_exceeded(self):
+        client = app.test_client()
+        with (
+            patch("server.geocode_address") as mock_geocode,
+            patch("server.static_map_url", return_value="https://example.com/static-map"),
+            patch("server.collect_nearby_poi_signals") as mock_collect_poi,
+        ):
+            from xuanxue_engine.map_provider_tencent import TencentMapApiError, TencentMapResolvedLocation
+
+            mock_geocode.return_value = TencentMapResolvedLocation(
+                query="上海浦东新区陆家嘴",
+                address="上海市浦东新区陆家嘴",
+                title="陆家嘴",
+                lat=31.2354,
+                lng=121.4997,
+                adcode="310115",
+                province="上海市",
+                city="上海市",
+                district="浦东新区",
+            )
+            mock_collect_poi.side_effect = TencentMapApiError("此key每日调用量已达到上限", status=120)
+            response = client.post(
+                "/api/maps/property-context",
+                json={"address": "上海浦东新区陆家嘴", "facing_direction": "坐北朝南"},
+            )
+            self.assertEqual(response.status_code, 200)
+            payload = response.get_json()
+            self.assertEqual(payload["mapStatus"]["poiSearch"], "quota_exceeded")
+            self.assertTrue(payload["mapStatus"]["warnings"])
+            self.assertEqual(payload["poiSummary"], {})
+            self.assertEqual(payload["poiHits"], {})
+            self.assertEqual(payload["staticMapUrl"], "https://example.com/static-map")
+
     def test_single_good_day_question_only_selects_date_selection(self):
         result = local_answer_question(GOOD_DAY_QUESTION)
         self.assertEqual([pack.key for pack in result["systems"]], ["date_selection"])
