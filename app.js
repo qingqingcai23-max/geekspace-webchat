@@ -4438,6 +4438,7 @@ window.addEventListener("pointermove", moveRitualCursor);
 bindDivinationWorkbench();
 bindPhysiognomyWorkbench();
 bindTarotWorkbench();
+loadProgress();
 if (performanceMode !== "lite") {
   loadModels();
 }
@@ -4446,7 +4447,6 @@ function runDeferredBoot() {
   if (performanceMode !== "lite") {
     initStarfield();
     initRitualCanvas();
-    loadProgress();
   }
 }
 
