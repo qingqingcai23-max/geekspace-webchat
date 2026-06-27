@@ -77,6 +77,42 @@ def _first_text(mapping: dict[str, Any], *keys: str) -> str:
     return ""
 
 
+def _normalize_address_query(address: str) -> str:
+    cleaned = " ".join(str(address or "").strip().split())
+    if not cleaned:
+        return ""
+    # Remove common natural-language prefixes before the concrete location.
+    for marker in ("：", ":"):
+        if marker in cleaned:
+            cleaned = cleaned.split(marker, 1)[-1].strip()
+    removable_suffixes = (
+        "一套住宅",
+        "一处住宅",
+        "住宅一套",
+        "一套房子",
+        "一处房子",
+        "一套房",
+        "这套住宅",
+        "这套房子",
+        "该住宅",
+        "该房屋",
+        "房屋",
+        "房子",
+        "住宅",
+        "住处",
+        "住所",
+        "公寓",
+        "住家",
+    )
+    for suffix in removable_suffixes:
+        if cleaned.endswith(suffix):
+            candidate = cleaned[: -len(suffix)].strip(" ,，。；;、")
+            if candidate:
+                cleaned = candidate
+                break
+    return cleaned
+
+
 def is_quota_exceeded_error(exc: Exception) -> bool:
     if isinstance(exc, TencentMapApiError):
         message = exc.message
@@ -130,7 +166,7 @@ def openstreetmap_geocode_address(address: str, region: str = "", timeout: float
     cleaned = str(address or "").strip()
     if not cleaned:
         raise ValueError("address is required for geocoding")
-    query = cleaned
+    query = _normalize_address_query(cleaned) or cleaned
     normalized_region = str(region or "").strip()
     if normalized_region and normalized_region not in cleaned:
         query = f"{normalized_region} {cleaned}".strip()
@@ -177,7 +213,8 @@ def geocode_address(address: str, region: str = "", timeout: float = 8.0) -> Ten
     cleaned = str(address or "").strip()
     if not cleaned:
         raise ValueError("address is required for geocoding")
-    params: dict[str, Any] = {"address": cleaned}
+    normalized = _normalize_address_query(cleaned) or cleaned
+    params: dict[str, Any] = {"address": normalized}
     if region:
         params["region"] = str(region).strip()
     try:

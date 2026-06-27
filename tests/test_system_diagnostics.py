@@ -91,6 +91,30 @@ class SystemDiagnosticsTests(unittest.TestCase):
             self.assertEqual(resolved.city, "上海市")
             mock_osm.assert_called_once()
 
+    def test_tencent_geocode_normalizes_natural_language_address_before_osm_fallback(self):
+        from xuanxue_engine import map_provider_tencent as provider
+        from xuanxue_engine.map_provider_tencent import TencentMapApiError
+
+        with (
+            patch.object(provider, "_request", side_effect=TencentMapApiError("此key每日调用量已达到上限", status=120)),
+            patch.object(provider, "openstreetmap_geocode_address") as mock_osm,
+        ):
+            mock_osm.return_value = provider.TencentMapResolvedLocation(
+                query="上海浦东新区陆家嘴一套住宅",
+                address="中国上海市浦东新区陆家嘴",
+                title="陆家嘴",
+                lat=31.2354,
+                lng=121.4997,
+                adcode="",
+                province="上海市",
+                city="上海市",
+                district="浦东新区",
+                source="osm-nominatim",
+            )
+            provider.geocode_address("上海浦东新区陆家嘴一套住宅")
+            self.assertEqual(mock_osm.call_args.kwargs["region"], "")
+            self.assertEqual(mock_osm.call_args.args[0], "上海浦东新区陆家嘴一套住宅")
+
     def test_map_geocode_api_supports_osm_fallback_payload(self):
         client = app.test_client()
         with patch("server.geocode_address") as mock_geocode, patch("server.static_map_url", return_value="https://example.com/static-map"):
@@ -113,6 +137,12 @@ class SystemDiagnosticsTests(unittest.TestCase):
             payload = response.get_json()
             self.assertEqual(payload["source"], "osm-nominatim")
             self.assertEqual(payload["city"], "上海市")
+
+    def test_map_provider_normalizes_natural_language_address_suffixes(self):
+        from xuanxue_engine import map_provider_tencent as provider
+
+        self.assertEqual(provider._normalize_address_query("上海浦东新区陆家嘴一套住宅"), "上海浦东新区陆家嘴")
+        self.assertEqual(provider._normalize_address_query("请按风水分析：上海浦东新区陆家嘴一套住宅"), "上海浦东新区陆家嘴")
 
     def test_property_context_api_returns_external_environment_screening(self):
         client = app.test_client()
