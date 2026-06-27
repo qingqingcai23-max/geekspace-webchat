@@ -14,11 +14,14 @@ from xuanxue_engine import BaziInput, IMPLEMENTED_SYSTEMS, calculate_bazi, calcu
 from xuanxue_engine import registry as engine_registry
 from xuanxue_engine.fengshui import evaluate_external_environment
 from xuanxue_engine.map_provider_tencent import (
+    build_address_query_variants,
     collect_nearby_poi_signals,
     geocode_address,
     has_tencent_map_key,
     is_quota_exceeded_error,
+    normalize_address_query,
     place_search,
+    search_address_candidates,
     static_map_url,
 )
 from xuanxue_engine.parsing import parse_birth_details, parse_datetime_from_text
@@ -1519,6 +1522,47 @@ def map_search():
         return jsonify({"error": str(exc)}), 400
 
 
+def build_map_lookup_meta(address: str, region: str = "") -> dict[str, Any]:
+    cleaned = str(address or "").strip()
+    normalized = normalize_address_query(cleaned) or cleaned
+    attempts = build_address_query_variants(cleaned, region=region)
+    return {
+        "originalAddress": cleaned,
+        "normalizedAddress": normalized,
+        "attemptedQueries": attempts,
+    }
+
+
+def build_property_context_suggestions(address: str, region: str = "", limit: int = 5) -> list[dict[str, Any]]:
+    suggestions = search_address_candidates(address, region=region, limit=limit)
+    results: list[dict[str, Any]] = []
+    for item in suggestions:
+        entry = {
+            "title": str(item.get("title") or "").strip(),
+            "address": str(item.get("address") or "").strip(),
+            "query": str(item.get("query") or "").strip(),
+            "source": str(item.get("source") or "").strip(),
+        }
+        lat = item.get("lat")
+        lng = item.get("lng")
+        if lat is not None and lng is not None:
+            entry["location"] = {
+                "lat": float(lat),
+                "lng": float(lng),
+            }
+        province = str(item.get("province") or "").strip()
+        city = str(item.get("city") or "").strip()
+        district = str(item.get("district") or "").strip()
+        if province:
+            entry["province"] = province
+        if city:
+            entry["city"] = city
+        if district:
+            entry["district"] = district
+        results.append(entry)
+    return results
+
+
 @app.post("/api/maps/property-context")
 def map_property_context():
     payload: dict[str, Any] = request.get_json(force=True, silent=False) or {}
@@ -1612,10 +1656,12 @@ def _map_property_context_with_fallback():
     payload: dict[str, Any] = request.get_json(force=True, silent=False) or {}
     address = str(payload.get("address") or payload.get("location") or "").strip()
     facing_direction = str(payload.get("facing_direction") or payload.get("facingDirection") or "").strip()
+    region = str(payload.get("region") or "").strip()
     if not address:
         return jsonify({"error": "address is required"}), 400
+    lookup_meta = build_map_lookup_meta(address, region=region)
     try:
-        resolved = geocode_address(address, region=str(payload.get("region") or "").strip())
+        resolved = geocode_address(address, region=region)
         map_status = {"poiSearch": "ok", "warnings": []}
         try:
             poi_hits = collect_nearby_poi_signals(
@@ -1680,6 +1726,7 @@ def _map_property_context_with_fallback():
             {
                 "address": resolved.address,
                 "title": resolved.title,
+                "query": resolved.query,
                 "location": {
                     "lat": resolved.lat,
                     "lng": resolved.lng,
@@ -1692,6 +1739,7 @@ def _map_property_context_with_fallback():
                 "poiSummary": poi_summary,
                 "poiHits": poi_hits,
                 "mapStatus": map_status,
+                "lookupMeta": lookup_meta,
                 "externalEnvironment": external,
                 "summary": " ".join(summary_parts),
                 "nextSignals": [
@@ -1702,7 +1750,17 @@ def _map_property_context_with_fallback():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 400
+        suggestions = build_property_context_suggestions(address, region=region, limit=5)
+        return (
+            jsonify(
+                {
+                    "error": str(exc),
+                    "lookupMeta": lookup_meta,
+                    "suggestions": suggestions,
+                }
+            ),
+            400,
+        )
 
 
 app.view_functions["map_property_context"] = _map_property_context_with_fallback

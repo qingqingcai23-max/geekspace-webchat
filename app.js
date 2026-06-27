@@ -634,6 +634,8 @@ let guideWorkbenchMapState = {
   loading: false,
   data: null,
   error: "",
+  suggestions: [],
+  lookupMeta: null,
   requestedAddress: "",
   requestedFacing: "",
 };
@@ -2422,11 +2424,90 @@ function renderFengshuiMapEmptyPanel(message, options = {}) {
   `;
 }
 
+function normalizeGuideWorkbenchMapSuggestions(rawSuggestions) {
+  if (!Array.isArray(rawSuggestions)) return [];
+  return rawSuggestions.map((item) => {
+    const suggestion = item && typeof item === "object" ? item : {};
+    return {
+      title: String(suggestion.title || "").trim(),
+      address: String(suggestion.address || "").trim(),
+      query: String(suggestion.query || "").trim(),
+      source: String(suggestion.source || "").trim(),
+      province: String(suggestion.province || "").trim(),
+      city: String(suggestion.city || "").trim(),
+      district: String(suggestion.district || "").trim(),
+    };
+  }).filter((item) => item.title || item.address);
+}
+
+function normalizeGuideWorkbenchLookupMeta(rawMeta) {
+  const meta = rawMeta && typeof rawMeta === "object" ? rawMeta : {};
+  const attemptedQueries = Array.isArray(meta.attemptedQueries)
+    ? meta.attemptedQueries.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  return {
+    originalAddress: String(meta.originalAddress || "").trim(),
+    normalizedAddress: String(meta.normalizedAddress || "").trim(),
+    attemptedQueries,
+  };
+}
+
+function renderGuideWorkbenchMapErrorPanel() {
+  const suggestions = normalizeGuideWorkbenchMapSuggestions(guideWorkbenchMapState.suggestions);
+  const lookupMeta = normalizeGuideWorkbenchLookupMeta(guideWorkbenchMapState.lookupMeta);
+  const normalizedHint = lookupMeta.normalizedAddress && lookupMeta.normalizedAddress !== lookupMeta.originalAddress
+    ? `<p class="guide-workbench-feedback-meta">已按“${escapeHtml(lookupMeta.normalizedAddress)}”做标准化检索。</p>`
+    : "";
+  const attemptedQueries = lookupMeta.attemptedQueries.slice(0, 4);
+  const attemptedBlock = attemptedQueries.length
+    ? `
+      <div class="guide-workbench-feedback-attempts">
+        <p class="guide-workbench-feedback-label">已尝试检索</p>
+        <div class="guide-workbench-chip-row">
+          ${attemptedQueries.map((item) => `<span class="guide-workbench-chip">${escapeHtml(item)}</span>`).join("")}
+        </div>
+      </div>
+    `
+    : "";
+  const suggestionBlock = suggestions.length
+    ? `
+      <div class="guide-workbench-feedback-suggestions">
+        <p class="guide-workbench-feedback-label">可试候选地址</p>
+        <div class="guide-workbench-suggestion-list">
+          ${suggestions.map((item, index) => {
+            const label = item.address || item.title;
+            const metaParts = [item.title && item.title !== label ? item.title : "", item.city || item.district || item.source].filter(Boolean);
+            return `
+              <button
+                type="button"
+                class="guide-workbench-suggestion"
+                data-map-suggestion="${escapeHtml(label)}"
+              >
+                <strong>${escapeHtml(label)}</strong>
+                ${metaParts.length ? `<span>${escapeHtml(metaParts.join(" · "))}</span>` : ""}
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `
+    : "";
+  return `
+    <div class="guide-workbench-feedback is-error">
+      <p class="guide-workbench-feedback-text">${escapeHtml(guideWorkbenchMapState.error || "地图速查失败，请稍后重试")}</p>
+      ${normalizedHint}
+      ${attemptedBlock}
+      ${suggestionBlock}
+    </div>
+  `;
+}
+
 function renderFengshuiMapPanel(source = {}, options = {}) {
   const insight = normalizeFengshuiMapInsight(source);
   const address = insight.address || "地址已定位";
   const verdictKey = String(insight.externalEnvironment?.verdict || "").trim();
   const verdictLabel = fengshuiVerdictLabelMap[verdictKey] || "外局初筛";
+  const lookupMeta = normalizeGuideWorkbenchLookupMeta(source?.lookupMeta || source?.lookup_meta);
   const summaryText = insight.summary || (
     insight.mapStatus.poiSearch === "quota_exceeded"
       ? "当前周边 POI 外局信号已降级，可先结合定位与卫星视角做初筛。"
@@ -2459,6 +2540,7 @@ function renderFengshuiMapPanel(source = {}, options = {}) {
         <div>
           <p class="fengshui-map-eyebrow">地图外局</p>
           <h4>${escapeHtml(address)}</h4>
+          ${lookupMeta.normalizedAddress && lookupMeta.normalizedAddress !== address ? `<p class="fengshui-map-query">检索词：${escapeHtml(lookupMeta.normalizedAddress)}</p>` : ""}
         </div>
         <div class="fengshui-map-badges">
           <span class="fengshui-map-badge${verdictKey === "caution" ? " is-caution" : ""}">${escapeHtml(verdictLabel)}</span>
@@ -2526,7 +2608,7 @@ function renderGuideWorkbenchMapPreview() {
   }
   if (guideWorkbenchMapState.error) {
     els.guideWorkbenchMapPreview.hidden = false;
-    els.guideWorkbenchMapPreview.innerHTML = `<div class="guide-workbench-feedback is-error">${escapeHtml(guideWorkbenchMapState.error)}</div>`;
+    els.guideWorkbenchMapPreview.innerHTML = renderGuideWorkbenchMapErrorPanel();
     return;
   }
   if (guideWorkbenchMapState.data) {
@@ -2543,6 +2625,8 @@ function resetGuideWorkbenchMapPreview() {
     loading: false,
     data: null,
     error: "",
+    suggestions: [],
+    lookupMeta: null,
     requestedAddress: "",
     requestedFacing: "",
   };
@@ -2554,6 +2638,7 @@ async function previewGuideWorkbenchFengshuiMap() {
   const values = readGuideWorkbenchValues();
   const address = String(values.address || "").trim();
   const facing = String(values.facing || "").trim();
+  let payload = {};
   if (!address) {
     els.guideWorkbenchFields?.querySelector('[data-field-key="address"]')?.focus();
     setStatus("先填地址或场景，再做地图速查");
@@ -2568,6 +2653,8 @@ async function previewGuideWorkbenchFengshuiMap() {
     loading: true,
     data: null,
     error: "",
+    suggestions: [],
+    lookupMeta: null,
     requestedAddress: address,
     requestedFacing: facing,
   };
@@ -2582,7 +2669,7 @@ async function previewGuideWorkbenchFengshuiMap() {
         facing_direction: facing,
       }),
     });
-    const payload = await response.json().catch(() => ({}));
+    payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(String(payload?.error || "地图速查暂时不可用"));
     }
@@ -2590,6 +2677,8 @@ async function previewGuideWorkbenchFengshuiMap() {
       loading: false,
       data: payload,
       error: "",
+      suggestions: [],
+      lookupMeta: payload?.lookupMeta || null,
       requestedAddress: address,
       requestedFacing: facing,
     };
@@ -2601,12 +2690,30 @@ async function previewGuideWorkbenchFengshuiMap() {
       loading: false,
       data: null,
       error: String(error?.message || "地图速查失败，请稍后重试"),
+      suggestions: normalizeGuideWorkbenchMapSuggestions(payload?.suggestions),
+      lookupMeta: payload?.lookupMeta || null,
       requestedAddress: address,
       requestedFacing: facing,
     };
     renderGuideWorkbenchMapPreview();
-    setStatus(guideWorkbenchMapState.error);
+    setStatus(guideWorkbenchMapState.suggestions.length ? "地址未直接命中，已给出候选地址，可点选后继续速查" : guideWorkbenchMapState.error);
   }
+}
+
+function applyGuideWorkbenchMapSuggestion(value) {
+  const nextAddress = String(value || "").trim();
+  if (!nextAddress || !els.guideWorkbenchFields) return;
+  const addressField = els.guideWorkbenchFields.querySelector('[data-field-key="address"]');
+  if (!(addressField instanceof HTMLInputElement || addressField instanceof HTMLTextAreaElement)) return;
+  addressField.value = nextAddress;
+  addressField.dispatchEvent(new Event("input", { bubbles: true }));
+  addressField.focus();
+  const end = addressField.value.length;
+  if (typeof addressField.setSelectionRange === "function") {
+    addressField.setSelectionRange(end, end);
+  }
+  setStatus("已带入候选地址，重新进行地图速查");
+  void previewGuideWorkbenchFengshuiMap();
 }
 
 function findNamingAnswer(answers) {
@@ -4416,6 +4523,14 @@ els.guideWorkbenchFill?.addEventListener("click", () => {
 
 els.guideWorkbenchMapLookup?.addEventListener("click", () => {
   void previewGuideWorkbenchFengshuiMap();
+});
+
+els.guideWorkbenchMapPreview?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const button = target.closest("[data-map-suggestion]");
+  if (!(button instanceof HTMLElement)) return;
+  applyGuideWorkbenchMapSuggestion(button.getAttribute("data-map-suggestion") || "");
 });
 
 els.planetGuide?.addEventListener("click", (event) => {

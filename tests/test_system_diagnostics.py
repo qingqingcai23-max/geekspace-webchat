@@ -178,6 +178,9 @@ class SystemDiagnosticsTests(unittest.TestCase):
             self.assertIn("externalEnvironment", payload)
             self.assertEqual(payload["externalEnvironment"]["verdict"], "caution")
             self.assertIn("poiSummary", payload)
+            self.assertEqual(payload["query"], "上海浦东某小区 12 栋 1802")
+            self.assertEqual(payload["lookupMeta"]["normalizedAddress"], "上海浦东某小区 12 栋 1802")
+            self.assertIn("上海浦东某小区 12 栋 1802", payload["lookupMeta"]["attemptedQueries"])
 
     def test_property_context_api_degrades_when_tencent_poi_quota_is_exceeded(self):
         client = app.test_client()
@@ -211,6 +214,38 @@ class SystemDiagnosticsTests(unittest.TestCase):
             self.assertEqual(payload["poiSummary"], {})
             self.assertEqual(payload["poiHits"], {})
             self.assertEqual(payload["staticMapUrl"], "https://example.com/static-map")
+
+    def test_property_context_api_returns_address_suggestions_when_geocode_fails(self):
+        client = app.test_client()
+        with (
+            patch("server.geocode_address", side_effect=ValueError("未找到该地址，请换更具体的小区或楼栋名称")),
+            patch(
+                "server.search_address_candidates",
+                return_value=[
+                    {
+                        "query": "上海浦东新区陆家嘴中心绿地",
+                        "title": "中心绿地",
+                        "address": "上海市浦东新区陆家嘴中心绿地",
+                        "lat": 31.2354,
+                        "lng": 121.4997,
+                        "city": "上海市",
+                        "district": "浦东新区",
+                        "source": "osm-nominatim-search",
+                    }
+                ],
+            ),
+        ):
+            response = client.post(
+                "/api/maps/property-context",
+                json={"address": "上海浦东新区陆家嘴一套住宅", "facing_direction": "坐北朝南"},
+            )
+            self.assertEqual(response.status_code, 400)
+            payload = response.get_json()
+            self.assertIn("error", payload)
+            self.assertEqual(payload["lookupMeta"]["normalizedAddress"], "上海浦东新区陆家嘴")
+            self.assertEqual(payload["lookupMeta"]["attemptedQueries"][0], "上海浦东新区陆家嘴一套住宅")
+            self.assertTrue(payload["suggestions"])
+            self.assertEqual(payload["suggestions"][0]["address"], "上海市浦东新区陆家嘴中心绿地")
 
     def test_single_good_day_question_only_selects_date_selection(self):
         result = local_answer_question(GOOD_DAY_QUESTION)

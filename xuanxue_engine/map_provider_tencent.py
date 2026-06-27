@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import re
 from typing import Any
 
 import requests
@@ -113,6 +114,69 @@ def _normalize_address_query(address: str) -> str:
     return cleaned
 
 
+def normalize_address_query(address: str) -> str:
+    return _normalize_address_query(address)
+
+
+def _strip_trailing_address_detail(address: str) -> str:
+    candidate = str(address or "").strip(" ,，。；;、")
+    if not candidate:
+        return ""
+    patterns = (
+        r"(?P<base>.+?)\s*[-#]?\d{1,4}[A-Za-z]?\s*(?:室|房)$",
+        r"(?P<base>.+?)\s*[-#]?\d{1,4}\s*(?:层|楼|F|f)$",
+        r"(?P<base>.+?)\s*[-#]?\d{1,3}\s*(?:栋|幢|座|号楼|号|单元)$",
+        r"(?P<base>.+?(?:栋|幢|座|号楼|单元))\s*[-#]?\d{1,4}$",
+        r"(?P<base>.+?(?:栋|幢|座|号楼|单元))\d{1,4}$",
+        r"(?P<base>.+?)\d{1,4}(?:室|房)$",
+        r"(?P<base>.+?)\d{1,4}(?:层|楼)$",
+        r"(?P<base>.+?)\d{1,3}(?:栋|幢|座|号楼|号|单元)$",
+    )
+    for pattern in patterns:
+        match = re.fullmatch(pattern, candidate, re.IGNORECASE)
+        if not match:
+            continue
+        base = str(match.group("base") or "").strip(" ,，。；;、-")
+        if base and base != candidate:
+            return base
+    return ""
+
+
+def build_address_query_variants(address: str, region: str = "") -> list[str]:
+    cleaned = " ".join(str(address or "").strip().split())
+    if not cleaned:
+        return []
+    variants: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str) -> None:
+        normalized = " ".join(str(value or "").strip().split())
+        if not normalized or normalized in seen:
+            return
+        seen.add(normalized)
+        variants.append(normalized)
+
+    normalized = _normalize_address_query(cleaned) or cleaned
+    add(cleaned)
+    add(normalized)
+
+    current = normalized
+    for _ in range(4):
+        stripped = _strip_trailing_address_detail(current)
+        if not stripped or stripped == current:
+            break
+        add(stripped)
+        current = stripped
+
+    normalized_region = str(region or "").strip()
+    if normalized_region:
+        for variant in list(variants):
+            if normalized_region not in variant:
+                add(f"{normalized_region} {variant}")
+
+    return variants
+
+
 def is_quota_exceeded_error(exc: Exception) -> bool:
     if isinstance(exc, TencentMapApiError):
         message = exc.message
@@ -209,6 +273,54 @@ def openstreetmap_geocode_address(address: str, region: str = "", timeout: float
     )
 
 
+def openstreetmap_search_candidates(address: str, region: str = "", limit: int = 5, timeout: float = 8.0) -> list[dict[str, Any]]:
+    cleaned = str(address or "").strip()
+    if not cleaned:
+        raise ValueError("address is required for place search")
+    query = _normalize_address_query(cleaned) or cleaned
+    normalized_region = str(region or "").strip()
+    if normalized_region and normalized_region not in query:
+        query = f"{normalized_region} {query}".strip()
+    response = requests.get(
+        NOMINATIM_SEARCH_URL,
+        params={
+            "q": query,
+            "format": "jsonv2",
+            "limit": max(1, min(int(limit), 10)),
+            "addressdetails": 1,
+        },
+        headers={
+            "User-Agent": _nominatim_user_agent(),
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
+        },
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, list):
+        return []
+    results: list[dict[str, Any]] = []
+    for item in payload:
+        result = item or {}
+        address_parts = result.get("address") or {}
+        display_name = str(result.get("display_name") or query).strip()
+        title = str(result.get("name") or display_name.split(",")[0].strip() or query)
+        results.append(
+            {
+                "query": cleaned,
+                "title": title,
+                "address": display_name,
+                "lat": float(result.get("lat")),
+                "lng": float(result.get("lon")),
+                "province": _first_text(address_parts, "state", "province", "region"),
+                "city": _first_text(address_parts, "city", "municipality", "town", "county", "state_district"),
+                "district": _first_text(address_parts, "suburb", "city_district", "district", "borough", "quarter", "township"),
+                "source": "osm-nominatim-search",
+            }
+        )
+    return results
+
+
 def geocode_address(address: str, region: str = "", timeout: float = 8.0) -> TencentMapResolvedLocation:
     cleaned = str(address or "").strip()
     if not cleaned:
@@ -241,6 +353,61 @@ def place_search(keyword: str, region: str = "", page_size: int = 5, timeout: fl
         timeout=timeout,
     )
     return list(payload.get("data") or [])
+
+
+def search_address_candidates(address: str, region: str = "", limit: int = 5, timeout: float = 8.0) -> list[dict[str, Any]]:
+    cleaned = str(address or "").strip()
+    if not cleaned:
+        raise ValueError("address is required for place search")
+    variants = build_address_query_variants(cleaned, region=region)
+    results: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    def add(item: dict[str, Any]) -> None:
+        title = str(item.get("title") or "").strip()
+        full_address = str(item.get("address") or "").strip()
+        source = str(item.get("source") or "").strip()
+        if not (title or full_address):
+            return
+        marker = (title, full_address, source)
+        if marker in seen:
+            return
+        seen.add(marker)
+        results.append(item)
+
+    for query in variants:
+        if has_tencent_map_key():
+            try:
+                entries = place_search(query, region=region, page_size=min(max(int(limit), 1), 10), timeout=timeout)
+            except Exception as exc:
+                if not is_quota_exceeded_error(exc):
+                    entries = []
+                else:
+                    entries = []
+            for item in entries:
+                location = item.get("location") or {}
+                add(
+                    {
+                        "query": query,
+                        "title": str(item.get("title") or "").strip(),
+                        "address": str(item.get("address") or "").strip(),
+                        "lat": location.get("lat"),
+                        "lng": location.get("lng"),
+                        "source": "tencent-place-search",
+                    }
+                )
+                if len(results) >= limit:
+                    return results[:limit]
+        try:
+            entries = openstreetmap_search_candidates(query, region=region, limit=limit, timeout=timeout)
+        except Exception:
+            entries = []
+        for item in entries:
+            add(item)
+            if len(results) >= limit:
+                return results[:limit]
+
+    return results[:limit]
 
 
 def nearby_search(lat: float, lng: float, keyword: str, radius: int = 1500, page_size: int = 8, timeout: float = 8.0) -> list[dict[str, Any]]:
