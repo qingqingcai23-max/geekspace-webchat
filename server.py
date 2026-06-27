@@ -1618,7 +1618,7 @@ def calculate_system_api(system: str):
 def oracle():
     payload: dict[str, Any] = request.get_json(force=True, silent=False) or {}
     question = str(payload.get("question") or "").strip()
-    model = str(payload.get("model") or DEFAULT_MODEL).strip()
+    model = str(payload.get("model") or AUTO_MODEL_ID).strip() or AUTO_MODEL_ID
     if not question:
         return jsonify({"error": "Question is required."}), 400
     safety = safety_screen(question)

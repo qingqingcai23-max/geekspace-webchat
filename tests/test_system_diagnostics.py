@@ -13,6 +13,36 @@ TIMING_QUESTION = "\u73b0\u5728\u662f2026-06-13 21:10\uff0c\u6211\u60f3\u95ee\u8
 
 
 class SystemDiagnosticsTests(unittest.TestCase):
+    def test_oracle_api_defaults_to_auto_local_routing_for_chinese_birth_chart_question(self):
+        client = app.test_client()
+        response = client.post(
+            "/api/oracle",
+            json={
+                "question": "请直接按八字命理分析：男，1995年10月18日早上8点30分出生于上海。重点看事业、财运、感情、健康，并给出喜用神与近期建议。"
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["model"], "local-vault-synthesis")
+        self.assertEqual(payload["controller"]["executionStatus"], "answered")
+        selected_keys = {item["key"] for item in payload["controller"]["selectedSystems"]}
+        self.assertIn("bazi", selected_keys)
+        self.assertNotEqual(payload["controller"]["questionType"], "综合问题")
+
+    def test_oracle_api_defaults_to_auto_local_routing_for_chinese_fengshui_question(self):
+        client = app.test_client()
+        response = client.post(
+            "/api/oracle",
+            json={"question": "请按风水分析：上海浦东新区陆家嘴一套住宅，坐北朝南，适不适合长期居住？"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["model"], "local-vault-synthesis")
+        self.assertEqual(payload["controller"]["executionStatus"], "answered")
+        selected_keys = [item["key"] for item in payload["controller"]["selectedSystems"]]
+        self.assertIn("fengshui", selected_keys)
+        self.assertEqual(payload["controller"]["questionType"], "空间/环境问题")
+
     def test_map_geocode_api_returns_location_payload(self):
         client = app.test_client()
         with patch("server.geocode_address") as mock_geocode, patch("server.static_map_url", return_value="https://example.com/static-map"):
