@@ -1185,6 +1185,13 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+.fengshui-map-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .fengshui-map-eyebrow {
   margin: 0 0 4px;
   color: rgba(126, 219, 211, 0.76);
@@ -1219,6 +1226,14 @@ button:disabled {
 .fengshui-map-link {
   display: block;
   margin-bottom: 12px;
+}
+
+.fengshui-map-summary,
+.fengshui-poi-empty {
+  margin: 0 0 12px;
+  color: rgba(197, 204, 216, 0.9);
+  font-size: 12px;
+  line-height: 1.75;
 }
 
 .fengshui-map-image {
@@ -1284,6 +1299,35 @@ button:disabled {
   color: rgba(197, 204, 216, 0.88);
   font-size: 12px;
   line-height: 1.8;
+}
+
+.fengshui-map-next {
+  margin-top: 10px;
+}
+
+.fengshui-signal-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fengshui-signal-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(201, 164, 91, 0.16);
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(247, 240, 222, 0.94);
+  font-size: 12px;
+}
+
+.fengshui-map-panel.is-inline {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0;
 }
 
 .naming-ritual-card {
@@ -2524,8 +2568,31 @@ button:disabled {
   border-left: 1px solid rgba(126, 219, 211, 0.18);
 }
 
+.guide-workbench-map-preview {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(126, 219, 211, 0.12);
+}
+
+.guide-workbench-feedback {
+  padding: 12px 14px;
+  border: 1px solid rgba(126, 219, 211, 0.12);
+  background: rgba(126, 219, 211, 0.05);
+  color: rgba(214, 222, 233, 0.86);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.guide-workbench-feedback.is-error {
+  border-color: rgba(201, 164, 91, 0.2);
+  background: rgba(201, 164, 91, 0.06);
+  color: rgba(245, 226, 188, 0.92);
+}
+
 .guide-workbench-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   justify-content: flex-end;
   margin-top: 14px;
 }
@@ -2989,6 +3056,10 @@ button:disabled {
   .divination-form,
   .physiognomy-form,
   .divination-dice-board {
+    grid-template-columns: 1fr;
+  }
+
+  .fengshui-poi-grid {
     grid-template-columns: 1fr;
   }
 

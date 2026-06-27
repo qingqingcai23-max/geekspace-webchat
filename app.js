@@ -82,7 +82,9 @@
   guideWorkbenchIntro: document.querySelector("#guideWorkbenchIntro"),
   guideWorkbenchFields: document.querySelector("#guideWorkbenchFields"),
   guideWorkbenchHint: document.querySelector("#guideWorkbenchHint"),
+  guideWorkbenchMapLookup: document.querySelector("#guideWorkbenchMapLookup"),
   guideWorkbenchFill: document.querySelector("#guideWorkbenchFill"),
+  guideWorkbenchMapPreview: document.querySelector("#guideWorkbenchMapPreview"),
   divinationWorkbench: document.querySelector("#divinationWorkbench"),
   divinationWorkbenchTitle: document.querySelector("#divinationWorkbenchTitle"),
   divinationWorkbenchIntro: document.querySelector("#divinationWorkbenchIntro"),
@@ -627,6 +629,13 @@ let guideAnimationFrame = null;
 let guideWorkbenchState = {
   key: "",
   fields: [],
+};
+let guideWorkbenchMapState = {
+  loading: false,
+  data: null,
+  error: "",
+  requestedAddress: "",
+  requestedFacing: "",
 };
 let divinationState = {
   systemKey: "",
@@ -1465,6 +1474,7 @@ function syncTarotStepState() {
 function renderGuideWorkbench(system) {
   const preset = resolveWorkbenchPreset(system?.key || "");
   const show = Boolean(preset && !customGuideWorkbenchKeys.has(system?.key || ""));
+  const previousKey = guideWorkbenchState.key;
   els.guideWorkbench?.classList.toggle("hidden", !show);
   if (els.guideWorkbench) els.guideWorkbench.dataset.active = show ? "true" : "false";
   if (!show) {
@@ -1473,12 +1483,16 @@ function renderGuideWorkbench(system) {
     if (els.guideWorkbenchTitle) els.guideWorkbenchTitle.textContent = "结构化起算";
     if (els.guideWorkbenchIntro) els.guideWorkbenchIntro.textContent = "把这个体系真正需要的条件填进去，系统会替你组装成可直接推演的提问。";
     if (els.guideWorkbenchHint) els.guideWorkbenchHint.textContent = "填写完成后会自动生成一段更适合本地起算的提问。";
+    resetGuideWorkbenchMapPreview();
     return;
   }
   guideWorkbenchState = {
     key: system.key,
     fields: Array.isArray(preset.fields) ? preset.fields : [],
   };
+  if (system.key !== previousKey) {
+    resetGuideWorkbenchMapPreview();
+  }
   if (els.guideWorkbenchTitle) els.guideWorkbenchTitle.textContent = preset.title || "结构化起算";
   if (els.guideWorkbenchIntro) els.guideWorkbenchIntro.textContent = preset.intro || "填写必要条件后，系统会帮你生成更适合本地实算的提问。";
   if (els.guideWorkbenchHint) els.guideWorkbenchHint.textContent = preset.hint || "填写完成后会自动生成一段更适合本地起算的提问。";
@@ -1498,6 +1512,9 @@ function renderGuideWorkbench(system) {
     control.placeholder = field.placeholder || "";
     control.dataset.fieldKey = field.key;
     control.addEventListener("input", () => {
+      if (guideWorkbenchState.key === "fengshui" && (field.key === "address" || field.key === "facing")) {
+        resetGuideWorkbenchMapPreview();
+      }
       if (field.autofill !== false) {
         fillGuideQuestionFromWorkbench();
       }
@@ -1506,6 +1523,7 @@ function renderGuideWorkbench(system) {
     els.guideWorkbenchFields.appendChild(row);
   });
   fillGuideQuestionFromWorkbench();
+  renderGuideWorkbenchMapPreview();
 }
 
 function mod1(value, base) {
@@ -2336,6 +2354,261 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+const fengshuiPoiLabelMap = {
+  hospital: "医院",
+  funeral: "殡葬场所",
+  school: "学校",
+  mall: "商业综合体",
+  park: "公园绿地",
+  water: "水系",
+  bridge: "桥梁",
+  elevated: "高架/快速路",
+  subway: "地铁站",
+  government: "政府设施",
+};
+
+const fengshuiVerdictLabelMap = {
+  supportive: "外局偏可用",
+  mixed: "外局需结合细节",
+  caution: "外局需谨慎复核",
+};
+
+function normalizeFengshuiMapInsight(source = {}) {
+  const mapContext = source?.mapContext || source?.map_context || source || {};
+  const externalEnvironment = source?.externalEnvironment || source?.external_environment || mapContext?.external_environment || {};
+  const rawStatus = mapContext.map_status || mapContext.mapStatus || source?.mapStatus || {};
+  const warnings = Array.isArray(rawStatus?.warnings)
+    ? rawStatus.warnings.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  const nextSignals = Array.isArray(source?.nextSignals || source?.next_signals)
+    ? (source.nextSignals || source.next_signals).map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  const rawPoiSummary = mapContext.poi_summary || mapContext.poiSummary || source?.poiSummary || {};
+  const poiSummary = rawPoiSummary && typeof rawPoiSummary === "object" ? rawPoiSummary : {};
+  const address = [
+    source?.address,
+    mapContext?.address,
+    source?.title,
+    mapContext?.title,
+    source?.fallbackAddress,
+  ].map((item) => String(item || "").trim()).find(Boolean) || "";
+  return {
+    address,
+    staticMapUrl: String(source?.staticMapUrl || mapContext?.staticMapUrl || mapContext?.static_map_url || "").trim(),
+    poiSummary,
+    mapStatus: {
+      poiSearch: String(rawStatus?.poiSearch || rawStatus?.poi_search || "").trim(),
+      warnings,
+    },
+    summary: String(source?.summary || mapContext?.summary || "").trim(),
+    nextSignals,
+    externalEnvironment: externalEnvironment && typeof externalEnvironment === "object" ? externalEnvironment : {},
+  };
+}
+
+function renderFengshuiMapEmptyPanel(message, options = {}) {
+  const panelClass = ["fengshui-map-panel", "is-empty", options.inline ? "is-inline" : ""].filter(Boolean).join(" ");
+  return `
+    <section class="${panelClass}">
+      <div class="fengshui-map-head">
+        <div>
+          <p class="fengshui-map-eyebrow">地图外局</p>
+          <h4>${escapeHtml(options.title || "地图外局暂未生成")}</h4>
+        </div>
+        <span class="fengshui-map-badge">${escapeHtml(options.badge || "待补充")}</span>
+      </div>
+      <p class="fengshui-map-empty">${escapeHtml(message)}</p>
+    </section>
+  `;
+}
+
+function renderFengshuiMapPanel(source = {}, options = {}) {
+  const insight = normalizeFengshuiMapInsight(source);
+  const address = insight.address || "地址已定位";
+  const verdictKey = String(insight.externalEnvironment?.verdict || "").trim();
+  const verdictLabel = fengshuiVerdictLabelMap[verdictKey] || "外局初筛";
+  const summaryText = insight.summary || (
+    insight.mapStatus.poiSearch === "quota_exceeded"
+      ? "当前周边 POI 外局信号已降级，可先结合定位与卫星视角做初筛。"
+      : "已完成地址定位，可先结合卫星视角做外局初筛。"
+  );
+  const poiRows = Object.entries(insight.poiSummary).slice(0, 6).map(([key, value]) => {
+    const item = value || {};
+    const count = item.count ?? 0;
+    const nearest = item.nearest_distance ?? item.nearestDistance;
+    return `
+      <div class="fengshui-poi-row">
+        <span>${escapeHtml(fengshuiPoiLabelMap[key] || key)}</span>
+        <strong>${escapeHtml(count)}${nearest ? ` · 最近 ${escapeHtml(nearest)}m` : ""}</strong>
+      </div>
+    `;
+  }).join("");
+  const supportNotes = [
+    ...(Array.isArray(insight.externalEnvironment?.supportive) ? insight.externalEnvironment.supportive : []),
+    ...(Array.isArray(insight.externalEnvironment?.signals) ? insight.externalEnvironment.signals : []),
+  ].map((item) => String(item || "").trim()).filter(Boolean).slice(0, 4);
+  const cautionNotes = Array.isArray(insight.externalEnvironment?.cautions)
+    ? insight.externalEnvironment.cautions.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 4)
+    : [];
+  const warningNotes = insight.mapStatus.warnings.slice(0, 3);
+  const nextSignals = insight.nextSignals.slice(0, 3);
+  const panelClass = ["fengshui-map-panel", options.inline ? "is-inline" : ""].filter(Boolean).join(" ");
+  return `
+    <section class="${panelClass}">
+      <div class="fengshui-map-head">
+        <div>
+          <p class="fengshui-map-eyebrow">地图外局</p>
+          <h4>${escapeHtml(address)}</h4>
+        </div>
+        <div class="fengshui-map-badges">
+          <span class="fengshui-map-badge${verdictKey === "caution" ? " is-caution" : ""}">${escapeHtml(verdictLabel)}</span>
+          ${insight.mapStatus.poiSearch === "quota_exceeded" ? '<span class="fengshui-map-badge is-caution">外局信号降级</span>' : ""}
+        </div>
+      </div>
+      ${summaryText ? `<p class="fengshui-map-summary">${escapeHtml(summaryText)}</p>` : ""}
+      ${insight.staticMapUrl ? `
+        <a class="fengshui-map-link" href="${escapeHtml(insight.staticMapUrl)}" target="_blank" rel="noreferrer">
+          <img class="fengshui-map-image" src="${escapeHtml(insight.staticMapUrl)}" alt="房屋地图预览" />
+        </a>
+      ` : ""}
+      ${warningNotes.length ? `
+        <div class="fengshui-note-block is-caution">
+          <p class="fengshui-note-title">当前提醒</p>
+          <ul>${warningNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </div>
+      ` : ""}
+      ${poiRows ? `<div class="fengshui-poi-grid">${poiRows}</div>` : (
+        insight.mapStatus.poiSearch === "quota_exceeded"
+          ? '<p class="fengshui-poi-empty">今日周边 POI 检索已降级，当前先按定位、卫星图与朝向做外局初筛。</p>'
+          : ""
+      )}
+      ${supportNotes.length ? `
+        <div class="fengshui-note-block">
+          <p class="fengshui-note-title">可用信号</p>
+          <ul>${supportNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </div>
+      ` : ""}
+      ${cautionNotes.length ? `
+        <div class="fengshui-note-block is-caution">
+          <p class="fengshui-note-title">谨慎点</p>
+          <ul>${cautionNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </div>
+      ` : ""}
+      ${nextSignals.length ? `
+        <div class="fengshui-map-next">
+          <p class="fengshui-note-title">下一步补充</p>
+          <div class="fengshui-signal-chip-row">
+            ${nextSignals.map((item) => `<span class="fengshui-signal-chip">${escapeHtml(item)}</span>`).join("")}
+          </div>
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderGuideWorkbenchMapPreview() {
+  const isFengshui = guideWorkbenchState.key === "fengshui";
+  if (els.guideWorkbenchMapLookup) {
+    els.guideWorkbenchMapLookup.hidden = !isFengshui;
+    els.guideWorkbenchMapLookup.disabled = !isFengshui || guideWorkbenchMapState.loading;
+    els.guideWorkbenchMapLookup.textContent = guideWorkbenchMapState.loading ? "速查中..." : "地图速查";
+  }
+  if (!els.guideWorkbenchMapPreview) return;
+  if (!isFengshui) {
+    els.guideWorkbenchMapPreview.hidden = true;
+    els.guideWorkbenchMapPreview.innerHTML = "";
+    return;
+  }
+  if (guideWorkbenchMapState.loading) {
+    els.guideWorkbenchMapPreview.hidden = false;
+    els.guideWorkbenchMapPreview.innerHTML = '<div class="guide-workbench-feedback">正在定位地址并读取地图外局，请稍候。</div>';
+    return;
+  }
+  if (guideWorkbenchMapState.error) {
+    els.guideWorkbenchMapPreview.hidden = false;
+    els.guideWorkbenchMapPreview.innerHTML = `<div class="guide-workbench-feedback is-error">${escapeHtml(guideWorkbenchMapState.error)}</div>`;
+    return;
+  }
+  if (guideWorkbenchMapState.data) {
+    els.guideWorkbenchMapPreview.hidden = false;
+    els.guideWorkbenchMapPreview.innerHTML = renderFengshuiMapPanel(guideWorkbenchMapState.data, { inline: true });
+    return;
+  }
+  els.guideWorkbenchMapPreview.hidden = true;
+  els.guideWorkbenchMapPreview.innerHTML = "";
+}
+
+function resetGuideWorkbenchMapPreview() {
+  guideWorkbenchMapState = {
+    loading: false,
+    data: null,
+    error: "",
+    requestedAddress: "",
+    requestedFacing: "",
+  };
+  renderGuideWorkbenchMapPreview();
+}
+
+async function previewGuideWorkbenchFengshuiMap() {
+  if (guideWorkbenchState.key !== "fengshui") return;
+  const values = readGuideWorkbenchValues();
+  const address = String(values.address || "").trim();
+  const facing = String(values.facing || "").trim();
+  if (!address) {
+    els.guideWorkbenchFields?.querySelector('[data-field-key="address"]')?.focus();
+    setStatus("先填地址或场景，再做地图速查");
+    return;
+  }
+  if (!facing) {
+    els.guideWorkbenchFields?.querySelector('[data-field-key="facing"]')?.focus();
+    setStatus("先填坐向或朝向，再做地图速查");
+    return;
+  }
+  guideWorkbenchMapState = {
+    loading: true,
+    data: null,
+    error: "",
+    requestedAddress: address,
+    requestedFacing: facing,
+  };
+  renderGuideWorkbenchMapPreview();
+  setStatus("正在定位房屋并读取地图外局");
+  try {
+    const response = await fetch("/api/maps/property-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address,
+        facing_direction: facing,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(String(payload?.error || "地图速查暂时不可用"));
+    }
+    guideWorkbenchMapState = {
+      loading: false,
+      data: payload,
+      error: "",
+      requestedAddress: address,
+      requestedFacing: facing,
+    };
+    renderGuideWorkbenchMapPreview();
+    const warnings = Array.isArray(payload?.mapStatus?.warnings) ? payload.mapStatus.warnings : [];
+    setStatus(warnings.length ? "地图速查已完成，当前先展示降级外局结果" : "地图速查已完成，可以先看外局再决定如何推演");
+  } catch (error) {
+    guideWorkbenchMapState = {
+      loading: false,
+      data: null,
+      error: String(error?.message || "地图速查失败，请稍后重试"),
+      requestedAddress: address,
+      requestedFacing: facing,
+    };
+    renderGuideWorkbenchMapPreview();
+    setStatus(guideWorkbenchMapState.error);
+  }
+}
+
 function findNamingAnswer(answers) {
   const values = Array.isArray(answers) ? answers : [];
   return values.find((answer) => {
@@ -2665,87 +2938,16 @@ function renderSystemAnswerCards(answers, options = {}) {
       `;
     }
     if ((answer.key === "fengshui" || answer.system === "风水") && fengshuiMapContext) {
-      const address = fengshuiMapContext.address || fengshuiMapContext.title || rawResult?.used_inputs?.location_or_floorplan || "";
-      const staticMapUrl = fengshuiMapContext.static_map_url || "";
-      const poiSummary = fengshuiMapContext.poi_summary || {};
-      const externalVerdict = String(fengshuiExternal?.verdict || "").trim();
-      const verdictLabel = {
-        supportive: "外局偏可用",
-        mixed: "外局需结合细节",
-        caution: "外局需谨慎复核",
-      }[externalVerdict] || "外局初筛";
-      const poiRows = Object.entries(poiSummary).slice(0, 6).map(([key, value]) => {
-        const labelMap = {
-          hospital: "医院",
-          funeral: "殡葬场所",
-          school: "学校",
-          mall: "商业综合体",
-          park: "公园绿地",
-          water: "水系",
-          bridge: "桥梁",
-          elevated: "高架/快速路",
-          subway: "地铁站",
-          government: "政府设施",
-        };
-        const item = value || {};
-        const count = item.count ?? 0;
-        const nearest = item.nearest_distance ?? item.nearestDistance;
-        return `
-          <div class="fengshui-poi-row">
-            <span>${labelMap[key] || key}</span>
-            <strong>${count}${nearest ? ` · 最近 ${nearest}m` : ""}</strong>
-          </div>
-        `;
-      }).join("");
-      const supportNotes = [
-        ...(Array.isArray(fengshuiExternal?.supportive) ? fengshuiExternal.supportive : []),
-        ...(Array.isArray(fengshuiExternal?.signals) ? fengshuiExternal.signals : []),
-      ].slice(0, 4);
-      const cautionNotes = Array.isArray(fengshuiExternal?.cautions) ? fengshuiExternal.cautions.slice(0, 4) : [];
-      fengshuiBlock = `
-        <section class="fengshui-map-panel">
-          <div class="fengshui-map-head">
-            <div>
-              <p class="fengshui-map-eyebrow">地图外局</p>
-              <h4>${escapeHtml(address || "地址已定位")}</h4>
-            </div>
-            <span class="fengshui-map-badge is-${escapeHtml(externalVerdict || "mixed")}">${escapeHtml(verdictLabel)}</span>
-          </div>
-          ${staticMapUrl ? `
-            <a class="fengshui-map-link" href="${escapeHtml(staticMapUrl)}" target="_blank" rel="noreferrer">
-              <img class="fengshui-map-image" src="${escapeHtml(staticMapUrl)}" alt="房屋地图预览" />
-            </a>
-          ` : ""}
-          ${poiRows ? `<div class="fengshui-poi-grid">${poiRows}</div>` : ""}
-          ${supportNotes.length ? `
-            <div class="fengshui-note-block">
-              <p class="fengshui-note-title">可用信号</p>
-              <ul>${supportNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-            </div>
-          ` : ""}
-          ${cautionNotes.length ? `
-            <div class="fengshui-note-block is-caution">
-              <p class="fengshui-note-title">谨慎点</p>
-              <ul>${cautionNotes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-            </div>
-          ` : ""}
-        </section>
-      `;
+      fengshuiBlock = renderFengshuiMapPanel({
+        mapContext: fengshuiMapContext,
+        externalEnvironment: fengshuiExternal,
+        fallbackAddress: rawResult?.used_inputs?.location_or_floorplan || "",
+      });
     } else if (answer.key === "fengshui" || answer.system === "风水") {
-      fengshuiBlock = `
-        <section class="fengshui-map-panel is-empty">
-          <div class="fengshui-map-head">
-            <div>
-              <p class="fengshui-map-eyebrow">地图外局</p>
-              <h4>地图增强暂未启用</h4>
-            </div>
-            <span class="fengshui-map-badge">待配置</span>
-          </div>
-          <p class="fengshui-map-empty">
-            当前服务器还没有启用腾讯地图 key，所以这次只展示了朝向粗筛。地图定位、卫星预览和周边外局信号会在配置后自动出现。
-          </p>
-        </section>
-      `;
+      fengshuiBlock = renderFengshuiMapEmptyPanel(
+        "这一轮还没有拿到地址级地图结果，当前只做了朝向与场景粗筛。补充地址、楼栋或先用风水起算台里的地图速查，再做完整风水判断会更稳。",
+        { title: "地图外局待补充" },
+      );
     }
     card.innerHTML = `
       <div class="system-answer-head">
@@ -3039,6 +3241,7 @@ function closeGuide() {
   els.guideWorkbench?.classList.add("hidden");
   if (els.guideWorkbench) els.guideWorkbench.dataset.active = "false";
   if (els.guideWorkbenchFields) els.guideWorkbenchFields.innerHTML = "";
+  resetGuideWorkbenchMapPreview();
   els.divinationWorkbench?.classList.add("hidden");
   if (els.divinationWorkbench) els.divinationWorkbench.dataset.active = "false";
   els.physiognomyWorkbench?.classList.add("hidden");
@@ -4209,6 +4412,10 @@ els.guideUsePrompt?.addEventListener("click", () => {
 
 els.guideWorkbenchFill?.addEventListener("click", () => {
   fillGuideQuestionFromWorkbench();
+});
+
+els.guideWorkbenchMapLookup?.addEventListener("click", () => {
+  void previewGuideWorkbenchFengshuiMap();
 });
 
 els.planetGuide?.addEventListener("click", (event) => {
