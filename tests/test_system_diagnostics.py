@@ -66,6 +66,54 @@ class SystemDiagnosticsTests(unittest.TestCase):
             self.assertEqual(payload["city"], "北京市")
             self.assertEqual(payload["staticMapUrl"], "https://example.com/static-map")
 
+    def test_tencent_geocode_falls_back_to_osm_when_quota_is_exceeded(self):
+        from xuanxue_engine import map_provider_tencent as provider
+        from xuanxue_engine.map_provider_tencent import TencentMapApiError
+
+        with (
+            patch.object(provider, "_request", side_effect=TencentMapApiError("此key每日调用量已达到上限", status=120)),
+            patch.object(provider, "openstreetmap_geocode_address") as mock_osm,
+        ):
+            mock_osm.return_value = provider.TencentMapResolvedLocation(
+                query="上海市浦东新区陆家嘴",
+                address="中国上海市浦东新区陆家嘴",
+                title="陆家嘴",
+                lat=31.2354,
+                lng=121.4997,
+                adcode="",
+                province="上海市",
+                city="上海市",
+                district="浦东新区",
+                source="osm-nominatim",
+            )
+            resolved = provider.geocode_address("上海市浦东新区陆家嘴")
+            self.assertEqual(resolved.source, "osm-nominatim")
+            self.assertEqual(resolved.city, "上海市")
+            mock_osm.assert_called_once()
+
+    def test_map_geocode_api_supports_osm_fallback_payload(self):
+        client = app.test_client()
+        with patch("server.geocode_address") as mock_geocode, patch("server.static_map_url", return_value="https://example.com/static-map"):
+            from xuanxue_engine.map_provider_tencent import TencentMapResolvedLocation
+
+            mock_geocode.return_value = TencentMapResolvedLocation(
+                query="上海市浦东新区陆家嘴",
+                address="中国上海市浦东新区陆家嘴",
+                title="陆家嘴",
+                lat=31.2354,
+                lng=121.4997,
+                adcode="",
+                province="上海市",
+                city="上海市",
+                district="浦东新区",
+                source="osm-nominatim",
+            )
+            response = client.get("/api/maps/geocode?address=%E4%B8%8A%E6%B5%B7%E5%B8%82%E6%B5%A6%E4%B8%9C%E6%96%B0%E5%8C%BA%E9%99%86%E5%AE%B6%E5%98%B4")
+            self.assertEqual(response.status_code, 200)
+            payload = response.get_json()
+            self.assertEqual(payload["source"], "osm-nominatim")
+            self.assertEqual(payload["city"], "上海市")
+
     def test_property_context_api_returns_external_environment_screening(self):
         client = app.test_client()
         with (

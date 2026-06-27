@@ -8,6 +8,7 @@ import requests
 
 
 TENCENT_LBS_BASE_URL = "https://apis.map.qq.com"
+NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,21 @@ def has_tencent_map_key() -> bool:
     return bool(tencent_map_key())
 
 
+def _nominatim_user_agent() -> str:
+    return (
+        os.environ.get("NOMINATIM_USER_AGENT")
+        or "geekspace-webchat/1.0 (map geocode fallback)"
+    ).strip()
+
+
+def _first_text(mapping: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = str(mapping.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def is_quota_exceeded_error(exc: Exception) -> bool:
     if isinstance(exc, TencentMapApiError):
         message = exc.message
@@ -92,14 +108,7 @@ def _request(path: str, params: dict[str, Any], timeout: float = 8.0) -> dict[st
     return payload
 
 
-def geocode_address(address: str, region: str = "", timeout: float = 8.0) -> TencentMapResolvedLocation:
-    cleaned = str(address or "").strip()
-    if not cleaned:
-        raise ValueError("address is required for geocoding")
-    params: dict[str, Any] = {"address": cleaned}
-    if region:
-        params["region"] = str(region).strip()
-    payload = _request("/ws/geocoder/v1/", params=params, timeout=timeout)
+def _build_tencent_geocode_result(cleaned: str, payload: dict[str, Any]) -> TencentMapResolvedLocation:
     result = payload.get("result") or {}
     location = result.get("location") or {}
     ad_info = result.get("ad_info") or {}
@@ -115,6 +124,69 @@ def geocode_address(address: str, region: str = "", timeout: float = 8.0) -> Ten
         city=str(address_components.get("city") or ""),
         district=str(address_components.get("district") or ""),
     )
+
+
+def openstreetmap_geocode_address(address: str, region: str = "", timeout: float = 8.0) -> TencentMapResolvedLocation:
+    cleaned = str(address or "").strip()
+    if not cleaned:
+        raise ValueError("address is required for geocoding")
+    query = cleaned
+    normalized_region = str(region or "").strip()
+    if normalized_region and normalized_region not in cleaned:
+        query = f"{normalized_region} {cleaned}".strip()
+    response = requests.get(
+        NOMINATIM_SEARCH_URL,
+        params={
+            "q": query,
+            "format": "jsonv2",
+            "limit": 1,
+            "addressdetails": 1,
+        },
+        headers={
+            "User-Agent": _nominatim_user_agent(),
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
+        },
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("OpenStreetMap geocoding returned no result.")
+    result = payload[0] or {}
+    address_parts = result.get("address") or {}
+    display_name = str(result.get("display_name") or query)
+    title = str(result.get("name") or display_name.split(",")[0].strip() or query)
+    province = _first_text(address_parts, "state", "province", "region")
+    city = _first_text(address_parts, "city", "municipality", "town", "county", "state_district")
+    district = _first_text(address_parts, "suburb", "city_district", "district", "borough", "quarter", "township")
+    return TencentMapResolvedLocation(
+        query=cleaned,
+        address=display_name,
+        title=title,
+        lat=float(result.get("lat")),
+        lng=float(result.get("lon")),
+        adcode="",
+        province=province,
+        city=city,
+        district=district,
+        source="osm-nominatim",
+    )
+
+
+def geocode_address(address: str, region: str = "", timeout: float = 8.0) -> TencentMapResolvedLocation:
+    cleaned = str(address or "").strip()
+    if not cleaned:
+        raise ValueError("address is required for geocoding")
+    params: dict[str, Any] = {"address": cleaned}
+    if region:
+        params["region"] = str(region).strip()
+    try:
+        payload = _request("/ws/geocoder/v1/", params=params, timeout=timeout)
+        return _build_tencent_geocode_result(cleaned, payload)
+    except Exception as exc:
+        if is_quota_exceeded_error(exc) or str(exc).startswith("Tencent map key is not configured"):
+            return openstreetmap_geocode_address(cleaned, region=region, timeout=timeout)
+        raise
 
 
 def place_search(keyword: str, region: str = "", page_size: int = 5, timeout: float = 8.0) -> list[dict[str, Any]]:
