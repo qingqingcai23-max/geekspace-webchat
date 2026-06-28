@@ -2781,6 +2781,7 @@ function renderNamingReport(answer) {
         ? `${asText(baziSummary.direction_label, "")}${baziSummary.direction_label ? " " : ""}${asText(baziSummary.current_dayun)}`
         : "未提供",
     },
+    { label: "格局倾向", value: asText([baziSummary.structure, baziSummary.pattern_name].filter(Boolean).join(" "), "未提供") },
     { label: "当前流年", value: asText(baziSummary.current_liunian) },
     { label: "当前流月", value: asText(baziSummary.current_liuyue) },
     { label: "季节", value: asText(baziSummary.season || birthInfo.season) },
@@ -2813,6 +2814,18 @@ function renderNamingReport(answer) {
       <strong>${escapeHtml(asJoin(baziSummary.weakest_elements, "未明"))}</strong>
     </article>
   `;
+  const guidanceRows = [
+    baziSummary.pattern_name || baziSummary.structure
+      ? `格局倾向：${[baziSummary.structure, baziSummary.pattern_name].filter(Boolean).join(" ")}`
+      : "",
+    Array.isArray(baziSummary.favorable_elements) && baziSummary.favorable_elements.length
+      ? `喜用方向：${baziSummary.favorable_elements.join("、")}`
+      : "",
+    Array.isArray(baziSummary.caution_elements) && baziSummary.caution_elements.length
+      ? `忌耗方向：${baziSummary.caution_elements.join("、")}`
+      : "",
+    baziSummary.yongshen_summary || "",
+  ].filter(Boolean);
   const candidateRows = candidates.map((item, index) => {
     const reason = [
       item?.why_selected,
@@ -2907,6 +2920,11 @@ function renderNamingReport(answer) {
           <div class="naming-element-strip">${elementMarkup}</div>
           <div class="naming-tendency-grid">${tendencyMarkup}</div>
         </div>
+        ${guidanceRows.length ? `
+          <div class="naming-bazi-grid">
+            ${guidanceRows.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+          </div>
+        ` : ""}
       </section>
 
       <section class="naming-candidates-section">
@@ -2991,6 +3009,16 @@ function renderSystemAnswerCards(answers, options = {}) {
         const suffix = baziSummary.start_age_text ? `，约 ${baziSummary.start_age_text} 起运` : "";
         baziLines.push(`${prefix}：${baziSummary.current_dayun}${suffix}`);
       }
+      if (baziSummary.pattern_name || baziSummary.structure) {
+        baziLines.push(`格局倾向：${[baziSummary.structure, baziSummary.pattern_name].filter(Boolean).join(" ")}`);
+      }
+      if (Array.isArray(baziSummary.favorable_elements) && baziSummary.favorable_elements.length) {
+        baziLines.push(`喜用方向：${baziSummary.favorable_elements.join("、")}`);
+      }
+      if (Array.isArray(baziSummary.caution_elements) && baziSummary.caution_elements.length) {
+        baziLines.push(`忌耗方向：${baziSummary.caution_elements.join("、")}`);
+      }
+      if (baziSummary.yongshen_summary) baziLines.push(`用神提示：${baziSummary.yongshen_summary}`);
       if (baziSummary.current_liunian) baziLines.push(`当前流年：${baziSummary.current_liunian}`);
       if (baziSummary.current_liuyue) baziLines.push(`当前流月：${baziSummary.current_liuyue}`);
       if (baziLines.length) {

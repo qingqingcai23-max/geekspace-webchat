@@ -6739,6 +6739,11 @@ def build_naming_profile_payload(question: str, result: dict[str, Any]) -> dict[
             "weakest_elements": list(summary.get("weakest_elements") or []),
             "season": trim_reply_text(str(bazi_result.get("season") or "")),
             "note": trim_reply_text(summary.get("note") or ""),
+            "pattern_name": trim_reply_text(str(summary.get("pattern_name") or "")),
+            "structure": trim_reply_text(str(summary.get("structure") or "")),
+            "yongshen_summary": trim_reply_text(str(summary.get("yongshen_summary") or "")),
+            "favorable_elements": list(bazi_result.get("favorable_elements") or []),
+            "caution_elements": list(bazi_result.get("caution_elements") or []),
             "current_dayun": trim_reply_text(str(summary.get("current_dayun") or "")),
             "current_liunian": trim_reply_text(str(summary.get("current_liunian") or "")),
             "current_liuyue": trim_reply_text(str(summary.get("current_liuyue") or "")),
@@ -7121,9 +7126,16 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         ten_gods = result.get("ten_gods") or {}
         hidden_ten_gods = result.get("hidden_ten_gods") or {}
         overview = result.get("overview") or {}
+        pattern_profile = result.get("pattern_profile") or {}
+        yongshen_profile = result.get("yongshen_profile") or {}
         strength = str(result.get("day_master_strength") or "")
         favorable = "、".join(result.get("favorable_elements") or [])
         caution_elements = "、".join(result.get("caution_elements") or [])
+        pattern_name = str((pattern_profile.get("pattern_name") or summary.get("pattern_name") or "")).strip()
+        structure = str((pattern_profile.get("structure") or summary.get("structure") or "")).strip()
+        yongshen_summary = trim_reply_text(
+            str((yongshen_profile.get("summary") or summary.get("yongshen_summary") or "")).strip()
+        )
         focus = question_topic_focus(question)
         direct_wealth_count = count_labels(list(ten_gods.values()), {"正财", "偏财"})
         hidden_wealth_count = sum(
@@ -7142,6 +7154,8 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         )
         if any(token in question for token in FULL_CHART_MARKERS) or {"wealth", "career_path", "relationship_topic", "identity_topic", "health"} <= focus:
             axis_parts = [
+                trim_reply_text(pattern_profile.get("summary")),
+                yongshen_summary,
                 trim_reply_text(overview.get("personality")),
                 trim_reply_text(overview.get("career")),
                 trim_reply_text(overview.get("wealth")),
@@ -7153,6 +7167,8 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                 f"八字全盘看，这盘日主{day_master.get('stem', '')}，五行呈现{strongest or '未明'}偏强、{weakest or '未明'}偏弱，"
                 f"整体更接近{'身强取泄耗财官' if strength == 'strong' else '身弱先扶身印比' if strength == 'weak' else '中和取流通'}的结构。"
             )
+            if pattern_name or structure:
+                lead += f" 格局先按{structure or '中和'}{pattern_name or '常规格'}来读。"
             if favorable or caution_elements:
                 lead += (
                     f" 现阶段更有利的发力元素偏向{favorable or '未明'}，"
@@ -8664,6 +8680,11 @@ def local_system_answer(pack: DossierPack, question: str, tags: set[str]) -> dic
                         "strongest_elements": list(summary.get("strongest_elements") or []),
                         "weakest_elements": list(summary.get("weakest_elements") or []),
                         "note": trim_reply_text(summary.get("note") or ""),
+                        "pattern_name": trim_reply_text(str(summary.get("pattern_name") or "")),
+                        "structure": trim_reply_text(str(summary.get("structure") or "")),
+                        "yongshen_summary": trim_reply_text(str(summary.get("yongshen_summary") or "")),
+                        "favorable_elements": list(bazi_result.get("favorable_elements") or []),
+                        "caution_elements": list(bazi_result.get("caution_elements") or []),
                         "current_dayun": trim_reply_text(str(summary.get("current_dayun") or "")),
                         "current_liunian": trim_reply_text(str(summary.get("current_liunian") or "")),
                         "current_liuyue": trim_reply_text(str(summary.get("current_liuyue") or "")),

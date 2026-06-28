@@ -522,6 +522,143 @@ def useful_elements(day_master: str, strength: str) -> dict[str, list[str]]:
     return {"favorable": favorable, "caution": caution}
 
 
+def ten_god_group_counts(
+    ten_gods: dict[str, str],
+    hidden_ten_gods: dict[str, list[dict[str, str]]],
+) -> dict[str, int]:
+    direct_values = [str(value or "").strip() for value in ten_gods.values()]
+    hidden_values = [
+        str(item.get("ten_god") or "").strip()
+        for values in hidden_ten_gods.values()
+        if isinstance(values, list)
+        for item in values
+    ]
+    all_values = direct_values + hidden_values
+    return {
+        "peer": sum(1 for value in all_values if value in {"比肩", "劫财"}),
+        "output": sum(1 for value in all_values if value in {"食神", "伤官"}),
+        "wealth": sum(1 for value in all_values if value in {"正财", "偏财"}),
+        "officer": sum(1 for value in all_values if value in {"正官", "七杀"}),
+        "resource": sum(1 for value in all_values if value in {"正印", "偏印"}),
+    }
+
+
+def identify_pattern_profile(
+    day_master: str,
+    strength: str,
+    pillars: dict[str, dict[str, Any]],
+    ten_gods: dict[str, str],
+    hidden_ten_gods: dict[str, list[dict[str, str]]],
+    favorable: dict[str, list[str]],
+) -> dict[str, Any]:
+    month_ten_god = str(ten_gods.get("month") or "").strip()
+    group_counts = ten_god_group_counts(ten_gods, hidden_ten_gods)
+    order = sorted(group_counts.items(), key=lambda item: item[1], reverse=True)
+    primary_group = order[0][0] if order and order[0][1] > 0 else ""
+    secondary_group = order[1][0] if len(order) > 1 and order[1][1] > 0 else ""
+    month_branch = str((pillars.get("month") or {}).get("branch") or "")
+    month_season = SEASON_BY_MONTH_BRANCH.get(month_branch, "")
+
+    primary_label_map = {
+        "peer": "比劫主轴",
+        "output": "食伤主轴",
+        "wealth": "财星主轴",
+        "officer": "官杀主轴",
+        "resource": "印星主轴",
+    }
+    month_label_map = {
+        "比肩": "比肩格倾向",
+        "劫财": "劫财格倾向",
+        "食神": "食神格倾向",
+        "伤官": "伤官格倾向",
+        "正财": "正财格倾向",
+        "偏财": "偏财格倾向",
+        "正官": "正官格倾向",
+        "七杀": "七杀格倾向",
+        "正印": "正印格倾向",
+        "偏印": "偏印格倾向",
+    }
+    structure_map = {
+        "strong": "身强",
+        "weak": "身弱",
+        "balanced": "中和",
+    }
+
+    pattern_name = month_label_map.get(month_ten_god) or primary_label_map.get(primary_group) or "常规格局"
+    structure = structure_map.get(strength, "中和")
+
+    if strength == "strong":
+        strategy = "宜泄、宜耗、宜财官，不宜再叠比印。"
+    elif strength == "weak":
+        strategy = "宜扶、宜印、宜比，不宜财官太重来压身。"
+    else:
+        strategy = "以流通为先，取输出、资源与现实兑现的平衡。"
+
+    evidence = [
+        f"月令十神落在{month_ten_god or '未明'}",
+        f"月支节令在{month_season or '未明'}季",
+    ]
+    if primary_group:
+        evidence.append(f"全盘十神重心偏向{primary_label_map.get(primary_group, primary_group)}")
+    if secondary_group:
+        evidence.append(f"次重心落在{primary_label_map.get(secondary_group, secondary_group)}")
+
+    summary = (
+        f"这盘先按{structure}{pattern_name}来看，月令主轴落在{month_ten_god or '未明'}，"
+        f"全盘更偏向{primary_label_map.get(primary_group, '多轴并行')}的运作方式。{strategy}"
+    )
+    if favorable.get("favorable"):
+        summary += f" 现阶段顺手的发力方向更偏{('、'.join(favorable['favorable']))}。"
+
+    return {
+        "pattern_name": pattern_name,
+        "structure": structure,
+        "month_ten_god": month_ten_god,
+        "primary_axis": primary_group,
+        "secondary_axis": secondary_group,
+        "axis_counts": group_counts,
+        "summary": summary,
+        "strategy": strategy,
+        "evidence": evidence,
+    }
+
+
+def build_yongshen_profile(
+    day_master: str,
+    strength: str,
+    favorable: dict[str, list[str]],
+    pattern_profile: dict[str, Any],
+) -> dict[str, Any]:
+    element = STEM_ELEMENTS[day_master]
+    favorable_elements = list(favorable.get("favorable") or [])
+    caution_elements = list(favorable.get("caution") or [])
+
+    if strength == "strong":
+        priority_reason = "日主偏强，先取泄耗财官来导流，避免火木继续堆高。"
+        action_advice = "行动上更适合把输出、成交、规则、责任和结果感拉到台前。"
+    elif strength == "weak":
+        priority_reason = "日主偏弱，先扶身护身，再谈财官与结果压力。"
+        action_advice = "行动上先补资源、方法、支持与稳定性，再放大竞争和兑现。"
+    else:
+        priority_reason = "整体中和，以流通和不过载为先。"
+        action_advice = "行动上要兼顾输出、资源与现实收益，不宜单边用力。"
+
+    summary = (
+        f"首版用神方向先按{pattern_profile.get('structure') or '中和'}盘处理，"
+        f"优先元素偏向{('、'.join(favorable_elements) or '未明')}，"
+        f"少硬扛的方向偏在{('、'.join(caution_elements) or '未明')}。{priority_reason}"
+    )
+
+    return {
+        "day_master_element": element,
+        "favorable_elements": favorable_elements,
+        "caution_elements": caution_elements,
+        "priority_reason": priority_reason,
+        "action_advice": action_advice,
+        "summary": summary,
+    }
+
+
 def bazi_overview(
     day_master: str,
     strength: str,
@@ -666,6 +803,8 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
     strength = day_master_strength(day_master, month_branch, counts)
     favorable = useful_elements(day_master, strength)
     overview = bazi_overview(day_master, strength, strongest, weakest, ten_gods)
+    pattern_profile = identify_pattern_profile(day_master, strength, pillars, ten_gods, hidden_ten_gods, favorable)
+    yongshen_profile = build_yongshen_profile(day_master, strength, favorable, pattern_profile)
     tz_str = resolved_location.tz_str if resolved_location else "Asia/Shanghai"
     reference_dt = current_reference_datetime(tz_str)
     luck_cycle = build_luck_cycle(chart_dt, pillars, day_master, data.gender, tz_str)
@@ -689,9 +828,9 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
     if not monthly_cycles.get("available"):
         risk_flags.append("流月层未能完整起出，当前只保留本命结构、大运与流年参考。")
 
-    summary_note = "当前已能完成排盘、五行、十神、多维总评，以及首版大运顺逆、起运、当前大运、流年与流月。"
+    summary_note = "当前已能完成排盘、五行、十神、多维总评、首版格局倾向与用神方向，以及首版大运顺逆、起运、当前大运、流年与流月。"
     if not luck_cycle.get("available"):
-        summary_note = "当前已能完成排盘、五行、十神、多维总评，以及当前流年、流月层；大运顺逆和起运仍依赖性别等信息补齐后再落全。"
+        summary_note = "当前已能完成排盘、五行、十神、多维总评、首版格局倾向与用神方向，以及当前流年、流月层；大运顺逆和起运仍依赖性别等信息补齐后再落全。"
 
     current_cycle = luck_cycle.get("current_cycle") if isinstance(luck_cycle, dict) else None
     current_year = annual_cycles.get("current_year") if isinstance(annual_cycles, dict) else None
@@ -727,6 +866,8 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "day_master_strength": strength,
         "favorable_elements": favorable["favorable"],
         "caution_elements": favorable["caution"],
+        "pattern_profile": pattern_profile,
+        "yongshen_profile": yongshen_profile,
         "luck_cycle": luck_cycle,
         "dayun": luck_cycle.get("cycles", []) if isinstance(luck_cycle, dict) else [],
         "annual_cycles": annual_cycles,
@@ -748,6 +889,9 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
             "current_dayun": current_cycle.get("pillar_text", "") if isinstance(current_cycle, dict) else "",
             "current_liunian": current_year.get("pillar_text", "") if isinstance(current_year, dict) else "",
             "current_liuyue": current_month.get("pillar_text", "") if isinstance(current_month, dict) else "",
+            "pattern_name": pattern_profile.get("pattern_name") or "",
+            "structure": pattern_profile.get("structure") or "",
+            "yongshen_summary": yongshen_profile.get("summary") or "",
         },
         "missing_inputs": [
             item
