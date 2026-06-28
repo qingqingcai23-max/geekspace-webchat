@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from calendar import monthrange
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import sxtwl
 
@@ -17,6 +19,49 @@ from .constants import (
     STEM_ELEMENTS,
     STEM_POLARITY,
 )
+
+JIEQI_NAMES = {
+    0: "冬至",
+    1: "小寒",
+    2: "大寒",
+    3: "立春",
+    4: "雨水",
+    5: "惊蛰",
+    6: "春分",
+    7: "清明",
+    8: "谷雨",
+    9: "立夏",
+    10: "小满",
+    11: "芒种",
+    12: "夏至",
+    13: "小暑",
+    14: "大暑",
+    15: "立秋",
+    16: "处暑",
+    17: "白露",
+    18: "秋分",
+    19: "寒露",
+    20: "霜降",
+    21: "立冬",
+    22: "小雪",
+    23: "大雪",
+}
+JIE_BOUNDARY_INDEXES = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+PILLAR_LABELS = {"year": "年", "month": "月", "day": "日", "hour": "时"}
+BRANCH_CLASHES = {
+    "子": "午",
+    "丑": "未",
+    "寅": "申",
+    "卯": "酉",
+    "辰": "戌",
+    "巳": "亥",
+    "午": "子",
+    "未": "丑",
+    "申": "寅",
+    "酉": "卯",
+    "戌": "辰",
+    "亥": "巳",
+}
 
 
 @dataclass(frozen=True)
@@ -77,6 +122,279 @@ def true_solar_offset_minutes(lng: float) -> int:
 
 def apply_true_solar_time(dt: datetime, lng: float) -> datetime:
     return dt + timedelta(minutes=true_solar_offset_minutes(lng))
+
+
+def current_reference_datetime(tz_str: str = "Asia/Shanghai") -> datetime:
+    try:
+        return datetime.now(ZoneInfo(tz_str)).replace(second=0, microsecond=0, tzinfo=None)
+    except Exception:
+        return datetime.now().replace(second=0, microsecond=0)
+
+
+def normalize_gender(gender: str) -> str:
+    value = str(gender or "").strip().lower()
+    if not value:
+        return ""
+    if any(token in value for token in ("男", "male", "man", "m")):
+        return "male"
+    if any(token in value for token in ("女", "female", "woman", "f")):
+        return "female"
+    return ""
+
+
+def pillar_from_indices(stem_index: int, branch_index: int) -> dict[str, Any]:
+    stem = HEAVENLY_STEMS[stem_index % 10]
+    branch = EARTHLY_BRANCHES[branch_index % 12]
+    return {
+        "stem": stem,
+        "branch": branch,
+        "text": f"{stem}{branch}",
+        "stem_index": stem_index % 10,
+        "branch_index": branch_index % 12,
+        "element": STEM_ELEMENTS[stem],
+        "polarity": STEM_POLARITY[stem],
+        "hidden_stems": BRANCH_HIDDEN_STEMS[branch],
+    }
+
+
+def jd_to_datetime(jd: float) -> datetime:
+    time = sxtwl.JD2DD(float(jd))
+    base = datetime(int(time.Y), int(time.M), int(time.D), int(time.h), int(time.m), 0)
+    return base + timedelta(seconds=round(float(time.s)))
+
+
+def collect_jie_boundaries(year: int) -> list[dict[str, Any]]:
+    seen: set[tuple[int, int]] = set()
+    boundaries: list[dict[str, Any]] = []
+    for target_year in (year - 1, year, year + 1):
+        for item in sxtwl.getJieQiByYear(target_year):
+            jq_index = int(item.jqIndex)
+            if jq_index not in JIE_BOUNDARY_INDEXES:
+                continue
+            jd = float(item.jd)
+            dedupe_key = (jq_index, int(round(jd * 1_000_000)))
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            boundaries.append(
+                {
+                    "name": JIEQI_NAMES.get(jq_index, str(jq_index)),
+                    "index": jq_index,
+                    "jd": jd,
+                    "datetime": jd_to_datetime(jd),
+                }
+            )
+    return sorted(boundaries, key=lambda item: item["datetime"])
+
+
+def select_jie_boundary(chart_dt: datetime, forward: bool) -> dict[str, Any] | None:
+    boundaries = collect_jie_boundaries(chart_dt.year)
+    if forward:
+        for boundary in boundaries:
+            if boundary["datetime"] >= chart_dt:
+                return boundary
+        return None
+    for boundary in reversed(boundaries):
+        if boundary["datetime"] <= chart_dt:
+            return boundary
+    return None
+
+
+def qiyun_offset(delta: timedelta) -> dict[str, Any]:
+    total_days = max(delta.total_seconds(), 0.0) / 86400.0
+    total_months = total_days * 4.0
+    years = int(total_months // 12)
+    remaining_months = total_months - years * 12
+    months = int(remaining_months)
+    days = int(round((remaining_months - months) * 30))
+
+    if days >= 30:
+        months += days // 30
+        days = days % 30
+    if months >= 12:
+        years += months // 12
+        months = months % 12
+
+    return {
+        "years": years,
+        "months": months,
+        "days": days,
+        "age_years": round(years + months / 12 + days / 360, 2),
+    }
+
+
+def format_qiyun_age(offset: dict[str, Any]) -> str:
+    parts = []
+    years = int(offset.get("years", 0))
+    months = int(offset.get("months", 0))
+    days = int(offset.get("days", 0))
+    if years:
+        parts.append(f"{years}岁")
+    if months:
+        parts.append(f"{months}个月")
+    if days:
+        parts.append(f"{days}天")
+    return "".join(parts) if parts else "出生即起运"
+
+
+def add_years_months_days(dt: datetime, years: int = 0, months: int = 0, days: int = 0) -> datetime:
+    month_cursor = (dt.month - 1) + years * 12 + months
+    new_year = dt.year + month_cursor // 12
+    new_month = month_cursor % 12 + 1
+    new_day = min(dt.day, monthrange(new_year, new_month)[1])
+    shifted = dt.replace(year=new_year, month=new_month, day=new_day)
+    return shifted + timedelta(days=days)
+
+
+def branch_relation_signals(target_branch: str, pillars: dict[str, dict[str, Any]]) -> list[str]:
+    same_pillars = [
+        f"{PILLAR_LABELS[name]}支"
+        for name, pillar in pillars.items()
+        if pillar.get("branch") == target_branch
+    ]
+    clash_pillars = [
+        f"{PILLAR_LABELS[name]}支"
+        for name, pillar in pillars.items()
+        if BRANCH_CLASHES.get(str(pillar.get("branch") or "")) == target_branch
+    ]
+
+    signals = []
+    if same_pillars:
+        signals.append(f"与{'、'.join(same_pillars)}同气")
+    if clash_pillars:
+        signals.append(f"冲{'、'.join(clash_pillars)}")
+    return signals
+
+
+def dayun_direction(year_stem: str, gender: str) -> dict[str, Any] | None:
+    normalized_gender = normalize_gender(gender)
+    if not normalized_gender:
+        return None
+
+    is_yang_year = STEM_POLARITY[year_stem] == "阳"
+    forward = (is_yang_year and normalized_gender == "male") or (
+        not is_yang_year and normalized_gender == "female"
+    )
+    return {
+        "normalized_gender": normalized_gender,
+        "forward": forward,
+        "label": "顺行" if forward else "逆行",
+        "rule": "阳年男、阴年女顺行；阴年男、阳年女逆行。",
+    }
+
+
+def build_luck_cycle(
+    chart_dt: datetime,
+    pillars: dict[str, dict[str, Any]],
+    day_master: str,
+    gender: str,
+    tz_str: str,
+) -> dict[str, Any]:
+    direction = dayun_direction(pillars["year"]["stem"], gender)
+    if not direction:
+        return {
+            "available": False,
+            "reason": "missing_gender",
+            "cycles": [],
+            "current_cycle": None,
+        }
+
+    boundary = select_jie_boundary(chart_dt, bool(direction["forward"]))
+    if not boundary:
+        return {
+            "available": False,
+            "reason": "jieqi_unavailable",
+            "cycles": [],
+            "current_cycle": None,
+        }
+
+    offset = qiyun_offset(abs(boundary["datetime"] - chart_dt))
+    start_dt = add_years_months_days(
+        chart_dt,
+        years=int(offset["years"]),
+        months=int(offset["months"]),
+        days=int(offset["days"]),
+    )
+    reference_dt = current_reference_datetime(tz_str or "Asia/Shanghai")
+    month_pillar = pillars["month"]
+    current_cycle = None
+    cycles: list[dict[str, Any]] = []
+    cycle_start_dt = start_dt
+    step = 1 if direction["forward"] else -1
+
+    for index in range(1, 11):
+        pillar = pillar_from_indices(
+            int(month_pillar["stem_index"]) + step * index,
+            int(month_pillar["branch_index"]) + step * index,
+        )
+        cycle_end_dt = add_years_months_days(cycle_start_dt, years=10)
+        entry = {
+            "index": index,
+            "pillar": pillar,
+            "pillar_text": pillar["text"],
+            "ten_god": ten_god(day_master, pillar["stem"]),
+            "branch_signals": branch_relation_signals(pillar["branch"], pillars),
+            "start_age_years": round(float(offset["age_years"]) + (index - 1) * 10, 2),
+            "end_age_years": round(float(offset["age_years"]) + index * 10, 2),
+            "start_datetime": cycle_start_dt.isoformat(sep=" ", timespec="minutes"),
+            "end_datetime": cycle_end_dt.isoformat(sep=" ", timespec="minutes"),
+            "is_current": cycle_start_dt <= reference_dt < cycle_end_dt,
+        }
+        if entry["is_current"]:
+            current_cycle = entry
+        cycles.append(entry)
+        cycle_start_dt = cycle_end_dt
+
+    return {
+        "available": True,
+        "direction": "forward" if direction["forward"] else "backward",
+        "direction_label": direction["label"],
+        "gender": direction["normalized_gender"],
+        "rule_basis": f"{direction['rule']} 起运换算按三天一岁、一天四个月、一个时辰十天折算。",
+        "boundary": {
+            "name": boundary["name"],
+            "datetime": boundary["datetime"].isoformat(sep=" ", timespec="minutes"),
+            "direction": "next" if direction["forward"] else "previous",
+        },
+        "start_age_years": float(offset["age_years"]),
+        "start_age_text": format_qiyun_age(offset),
+        "start_datetime": start_dt.isoformat(sep=" ", timespec="minutes"),
+        "cycles": cycles,
+        "current_cycle": current_cycle,
+        "reference_datetime": reference_dt.isoformat(sep=" ", timespec="minutes"),
+    }
+
+
+def build_annual_cycles(
+    day_master: str,
+    pillars: dict[str, dict[str, Any]],
+    reference_dt: datetime,
+) -> dict[str, Any]:
+    reference_year = reference_dt.year
+    cycles: list[dict[str, Any]] = []
+    current_year_cycle = None
+
+    for year in range(reference_year - 2, reference_year + 5):
+        pillar = ganzhi(sxtwl.fromSolar(year, 6, 15).getYearGZ())
+        entry = {
+            "year": year,
+            "pillar": pillar,
+            "pillar_text": pillar["text"],
+            "ten_god": ten_god(day_master, pillar["stem"]),
+            "branch_signals": branch_relation_signals(pillar["branch"], pillars),
+            "is_current": year == reference_year,
+        }
+        if entry["is_current"]:
+            current_year_cycle = entry
+        cycles.append(entry)
+
+    return {
+        "available": True,
+        "reference_year": reference_year,
+        "rule_basis": "流年干支按节气年处理，采用每年年中日期提取该年的稳定年柱。",
+        "cycles": cycles,
+        "current_year": current_year_cycle,
+    }
 
 
 def element_controlled_by(element: str) -> str:
@@ -284,6 +602,10 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
     strength = day_master_strength(day_master, month_branch, counts)
     favorable = useful_elements(day_master, strength)
     overview = bazi_overview(day_master, strength, strongest, weakest, ten_gods)
+    tz_str = resolved_location.tz_str if resolved_location else "Asia/Shanghai"
+    reference_dt = current_reference_datetime(tz_str)
+    luck_cycle = build_luck_cycle(chart_dt, pillars, day_master, data.gender, tz_str)
+    annual_cycles = build_annual_cycles(day_master, pillars, reference_dt)
 
     risk_flags = []
     if not data.birth_location:
@@ -292,10 +614,20 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         risk_flags.append("出生地未能解析为本地城市库条目，当前未做真太阳时修正。")
     if not data.gender:
         risk_flags.append("未提供性别，当前不计算大运顺逆与起运。")
+    elif not luck_cycle.get("available"):
+        risk_flags.append("大运层未能完整起出，当前只保留本命结构与流年参考。")
     if dt.hour == 23 and not data.late_zi_hour_next_day:
         risk_flags.append("23点子时存在早晚子时流派差异，本次按同一公历日处理。")
     if resolved_location and resolved_location.approximate:
         risk_flags.append("出生地按区域级别近似解析，真太阳时修正只能视作近似值。")
+    risk_flags.append("大运起运按常用三天一岁口径折算，具体门派若采用别的换算规则，起运时点会有小幅差异。")
+
+    summary_note = "当前已能完成排盘、五行、十神、多维总评，以及首版大运顺逆、起运、当前大运与近年流年。"
+    if not luck_cycle.get("available"):
+        summary_note = "当前已能完成排盘、五行、十神与多维总评；大运顺逆和起运仍依赖性别等信息补齐后再落全。"
+
+    current_cycle = luck_cycle.get("current_cycle") if isinstance(luck_cycle, dict) else None
+    current_year = annual_cycles.get("current_year") if isinstance(annual_cycles, dict) else None
 
     return {
         "system": "bazi",
@@ -327,11 +659,23 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "day_master_strength": strength,
         "favorable_elements": favorable["favorable"],
         "caution_elements": favorable["caution"],
+        "luck_cycle": luck_cycle,
+        "dayun": luck_cycle.get("cycles", []) if isinstance(luck_cycle, dict) else [],
+        "annual_cycles": annual_cycles,
+        "liunian": annual_cycles.get("cycles", []) if isinstance(annual_cycles, dict) else [],
+        "current_cycles": {
+            "decadal": current_cycle,
+            "yearly": current_year,
+            "reference_datetime": reference_dt.isoformat(sep=" ", timespec="minutes"),
+        },
         "overview": overview,
         "summary": {
             "strongest_elements": [item[0] for item in strongest if item[1] == strongest[0][1]],
             "weakest_elements": weakest,
-            "note": "当前已能完成排盘、五行、十神与多维总评，但仍不是完整大运流年断法。",
+            "note": summary_note,
+            "has_decadal_timing": bool(luck_cycle.get("available")),
+            "current_dayun": current_cycle.get("pillar_text", "") if isinstance(current_cycle, dict) else "",
+            "current_liunian": current_year.get("pillar_text", "") if isinstance(current_year, dict) else "",
         },
         "missing_inputs": [
             item

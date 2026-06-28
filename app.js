@@ -2775,6 +2775,13 @@ function renderNamingReport(answer) {
         .join(" / ") || "未提供",
     },
     { label: "日柱", value: asText(baziSummary.day_pillar) },
+    {
+      label: "当前大运",
+      value: baziSummary.current_dayun
+        ? `${asText(baziSummary.direction_label, "")}${baziSummary.direction_label ? " " : ""}${asText(baziSummary.current_dayun)}`
+        : "未提供",
+    },
+    { label: "当前流年", value: asText(baziSummary.current_liunian) },
     { label: "季节", value: asText(baziSummary.season || birthInfo.season) },
     { label: "五行", value: asText(baziSummary.five_elements) },
   ];
@@ -2978,6 +2985,12 @@ function renderSystemAnswerCards(answers, options = {}) {
       if (baziSummary.day_pillar) baziLines.push(`日柱：${baziSummary.day_pillar}`);
       if (baziSummary.day_master) baziLines.push(`日主：${baziSummary.day_master}`);
       if (baziSummary.five_elements) baziLines.push(`五行：${baziSummary.five_elements}`);
+      if (baziSummary.current_dayun) {
+        const prefix = baziSummary.direction_label ? `${baziSummary.direction_label}大运` : "当前大运";
+        const suffix = baziSummary.start_age_text ? `，约 ${baziSummary.start_age_text} 起运` : "";
+        baziLines.push(`${prefix}：${baziSummary.current_dayun}${suffix}`);
+      }
+      if (baziSummary.current_liunian) baziLines.push(`当前流年：${baziSummary.current_liunian}`);
       if (baziLines.length) {
         baziLines.push(`偏强：${strongest}`);
         baziLines.push(`偏弱：${weakest}`);
