@@ -7132,6 +7132,7 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         pattern_conditions = result.get("pattern_conditions") or {}
         yongshen_profile = result.get("yongshen_profile") or {}
         timing_linkage = result.get("timing_linkage") or {}
+        theme_guidance = result.get("theme_guidance") or {}
         strength = str(result.get("day_master_strength") or "")
         favorable = "、".join(result.get("favorable_elements") or [])
         caution_elements = "、".join(result.get("caution_elements") or [])
@@ -7204,6 +7205,7 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                 lead += " " + "，".join(bit for bit in timing_bits if bit) + "。"
             return " ".join(part for part in [lead] + axis_parts if part).strip()
         if "wealth" in focus:
+            wealth_theme = theme_guidance.get("wealth") or {}
             source_parts: list[str] = []
             risk_parts: list[str] = []
             rhythm_parts: list[str] = []
@@ -7228,8 +7230,10 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
             return "。".join(
                 part for part in [
                     f"八字看财运，这盘以日主{day_master.get('stem', '')}为核心，财星和比劫同时有存在感",
+                    trim_reply_text(wealth_theme.get("summary")),
                     "；".join(source_parts) if source_parts else "",
                     "；".join(rhythm_parts) if rhythm_parts else "",
+                    f"当前时运：{trim_reply_text(wealth_theme.get('timing_note'))}" if trim_reply_text(wealth_theme.get("timing_note")) else "",
                     f"要特别防的是：{'；'.join(risk_parts)}" if risk_parts else "",
                 ] if part
             ) + "。"
@@ -7319,6 +7323,7 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                 ] if part
             ) + "。"
         if "relationship_topic" in focus:
+            relationship_theme = theme_guidance.get("relationship") or {}
             relation_parts: list[str] = []
             caution_parts: list[str] = []
             if hidden_relationship_count >= 2:
@@ -7338,11 +7343,14 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
             return "。".join(
                 part for part in [
                     f"八字看婚姻，这盘以日主{day_master.get('stem', '')}为核心，感情不是没机会，但更重长期磨合后的稳定度",
+                    trim_reply_text(relationship_theme.get("summary")),
                     "；".join(relation_parts),
+                    f"当前时运：{trim_reply_text(relationship_theme.get('timing_note'))}" if trim_reply_text(relationship_theme.get("timing_note")) else "",
                     f"要注意的是：{'；'.join(caution_parts)}" if caution_parts else "",
                 ] if part
             ) + "。"
         if "identity_topic" in focus:
+            direction_theme = theme_guidance.get("direction") or {}
             identity_parts: list[str] = []
             if "火" in strongest:
                 identity_parts.append("火旺让你外在反应快、表达欲和存在感都不低，做事不喜欢长期闷着")
@@ -7357,7 +7365,9 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
             return "。".join(
                 part for part in [
                     f"八字看性格与方向，日主{day_master.get('stem', '')}带出的核心气质，是先凭主观能动性起步，再用结果说话",
+                    trim_reply_text(direction_theme.get("summary")),
                     "；".join(identity_parts),
+                    f"当前时运：{trim_reply_text(direction_theme.get('timing_note'))}" if trim_reply_text(direction_theme.get("timing_note")) else "",
                     "适合走能让你主动组织、表达判断、逐步形成个人方法论的方向。",
                 ] if part
             )

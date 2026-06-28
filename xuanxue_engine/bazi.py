@@ -776,6 +776,115 @@ def build_timing_linkage(
     }
 
 
+def build_theme_guidance(
+    day_master: str,
+    strength: str,
+    overview: dict[str, str],
+    pattern_profile: dict[str, Any],
+    pattern_conditions: dict[str, Any],
+    yongshen_profile: dict[str, Any],
+    timing_linkage: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    favorable_elements = list(yongshen_profile.get("favorable_elements") or [])
+    caution_elements = list(yongshen_profile.get("caution_elements") or [])
+    success_conditions = list(pattern_conditions.get("success_conditions") or [])
+    risk_conditions = list(pattern_conditions.get("risk_conditions") or [])
+    decadal = timing_linkage.get("decadal") or {}
+    yearly = timing_linkage.get("yearly") or {}
+    monthly = timing_linkage.get("monthly") or {}
+
+    def timing_focus() -> str:
+        picked = []
+        for item in (decadal, yearly, monthly):
+            if not isinstance(item, dict) or not item:
+                continue
+            pillar = str(item.get("pillar_text") or "").strip()
+            support = str(item.get("support_level") or "").strip()
+            label = str(item.get("label") or "").strip()
+            if label and pillar and support:
+                picked.append(f"{label}{pillar}偏{support}")
+        return "；".join(picked[:3])
+
+    themes: dict[str, dict[str, Any]] = {
+        "career": {
+            "summary": str(overview.get("career") or "").strip(),
+            "favorable_points": [
+                "把职责、结果、表达和资源兑现放进同一条主线里。",
+                success_conditions[0] if success_conditions else "",
+                f"多借{('、'.join(favorable_elements))}这类元素对应的路径发力。" if favorable_elements else "",
+            ],
+            "risk_points": [
+                risk_conditions[0] if risk_conditions else "",
+                "别一边冲主业一边把太多副线同时拉满。",
+                f"{('、'.join(caution_elements))}过旺时，最怕上头硬推。" if caution_elements else "",
+            ],
+            "timing_note": timing_focus(),
+        },
+        "wealth": {
+            "summary": str(overview.get("wealth") or "").strip(),
+            "favorable_points": [
+                "收入更适合靠结构化经营，而不是只赌单点机会。",
+                "先稳回款、边界和现金流，再放大规模。",
+                success_conditions[1] if len(success_conditions) > 1 else "",
+            ],
+            "risk_points": [
+                "合伙、人情、垫资和分流要一直防。",
+                risk_conditions[1] if len(risk_conditions) > 1 else "",
+                "节奏越热的时候，越要保留缓冲。",
+            ],
+            "timing_note": timing_focus(),
+        },
+        "relationship": {
+            "summary": str(overview.get("relationship") or "").strip(),
+            "favorable_points": [
+                "更适合慢热筛选，先看边界、责任感和现实配合。",
+                "能一起处理现实问题的人，匹配度更高。",
+                "留出沟通和磨合空间，关系反而更容易稳。",
+            ],
+            "risk_points": [
+                "第三方意见过多时，最容易把关系节奏带偏。",
+                "情绪上头抢结论，会把原本能谈开的事谈硬。",
+                "别把事业或现金流压力直接倒进关系里。",
+            ],
+            "timing_note": timing_focus(),
+        },
+        "health": {
+            "summary": str(overview.get("health") or "").strip(),
+            "favorable_points": [
+                "先调节节奏、恢复力和日常消耗结构。",
+                "越忙的时候越要把睡眠、休息和恢复放进安排里。",
+                f"多往{('、'.join(favorable_elements))}的补偏方向做生活管理。" if favorable_elements else "",
+            ],
+            "risk_points": [
+                "过劳、急推进、长期不收边界时，身体最容易先响铃。",
+                f"{('、'.join(caution_elements))}偏旺时，更要防透支。" if caution_elements else "",
+                "这部分只作命理提醒，不替代医疗判断。",
+            ],
+            "timing_note": timing_focus(),
+        },
+        "direction": {
+            "summary": str(overview.get("direction") or "").strip(),
+            "favorable_points": [
+                f"先按{pattern_profile.get('structure') or '中和'}{pattern_profile.get('pattern_name') or '常规格'}的逻辑走主线。",
+                "把主观能动性、表达输出和现实结果串成长期路径。",
+                str(yongshen_profile.get("action_advice") or "").strip(),
+            ],
+            "risk_points": [
+                "别频繁换赛道、换身份、换打法。",
+                risk_conditions[0] if risk_conditions else "",
+                "一旦分神太多，原盘优势就会被冲淡。",
+            ],
+            "timing_note": timing_focus(),
+        },
+    }
+
+    for item in themes.values():
+        item["favorable_points"] = [text for text in item["favorable_points"] if text]
+        item["risk_points"] = [text for text in item["risk_points"] if text]
+        item["timing_note"] = str(item.get("timing_note") or "").strip()
+    return themes
+
+
 def bazi_overview(
     day_master: str,
     strength: str,
@@ -954,6 +1063,15 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
     current_month = monthly_cycles.get("current_month") if isinstance(monthly_cycles, dict) else None
     pattern_conditions = build_pattern_conditions(pattern_profile, yongshen_profile, strongest, weakest)
     timing_linkage = build_timing_linkage(day_master, yongshen_profile, current_cycle, current_year, current_month)
+    theme_guidance = build_theme_guidance(
+        day_master,
+        strength,
+        overview,
+        pattern_profile,
+        pattern_conditions,
+        yongshen_profile,
+        timing_linkage,
+    )
 
     return {
         "system": "bazi",
@@ -988,6 +1106,7 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "pattern_profile": pattern_profile,
         "pattern_conditions": pattern_conditions,
         "yongshen_profile": yongshen_profile,
+        "theme_guidance": theme_guidance,
         "luck_cycle": luck_cycle,
         "dayun": luck_cycle.get("cycles", []) if isinstance(luck_cycle, dict) else [],
         "annual_cycles": annual_cycles,
