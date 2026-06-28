@@ -6742,6 +6742,8 @@ def build_naming_profile_payload(question: str, result: dict[str, Any]) -> dict[
             "pattern_name": trim_reply_text(str(summary.get("pattern_name") or "")),
             "structure": trim_reply_text(str(summary.get("structure") or "")),
             "yongshen_summary": trim_reply_text(str(summary.get("yongshen_summary") or "")),
+            "pattern_conditions_summary": trim_reply_text(str(summary.get("pattern_conditions_summary") or "")),
+            "timing_linkage_summary": trim_reply_text(str(summary.get("timing_linkage_summary") or "")),
             "favorable_elements": list(bazi_result.get("favorable_elements") or []),
             "caution_elements": list(bazi_result.get("caution_elements") or []),
             "current_dayun": trim_reply_text(str(summary.get("current_dayun") or "")),
@@ -7127,7 +7129,9 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         hidden_ten_gods = result.get("hidden_ten_gods") or {}
         overview = result.get("overview") or {}
         pattern_profile = result.get("pattern_profile") or {}
+        pattern_conditions = result.get("pattern_conditions") or {}
         yongshen_profile = result.get("yongshen_profile") or {}
+        timing_linkage = result.get("timing_linkage") or {}
         strength = str(result.get("day_master_strength") or "")
         favorable = "、".join(result.get("favorable_elements") or [])
         caution_elements = "、".join(result.get("caution_elements") or [])
@@ -7155,7 +7159,9 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         if any(token in question for token in FULL_CHART_MARKERS) or {"wealth", "career_path", "relationship_topic", "identity_topic", "health"} <= focus:
             axis_parts = [
                 trim_reply_text(pattern_profile.get("summary")),
+                trim_reply_text(pattern_conditions.get("summary")),
                 yongshen_summary,
+                trim_reply_text(timing_linkage.get("summary")),
                 trim_reply_text(overview.get("personality")),
                 trim_reply_text(overview.get("career")),
                 trim_reply_text(overview.get("wealth")),
@@ -8683,6 +8689,8 @@ def local_system_answer(pack: DossierPack, question: str, tags: set[str]) -> dic
                         "pattern_name": trim_reply_text(str(summary.get("pattern_name") or "")),
                         "structure": trim_reply_text(str(summary.get("structure") or "")),
                         "yongshen_summary": trim_reply_text(str(summary.get("yongshen_summary") or "")),
+                        "pattern_conditions_summary": trim_reply_text(str(summary.get("pattern_conditions_summary") or "")),
+                        "timing_linkage_summary": trim_reply_text(str(summary.get("timing_linkage_summary") or "")),
                         "favorable_elements": list(bazi_result.get("favorable_elements") or []),
                         "caution_elements": list(bazi_result.get("caution_elements") or []),
                         "current_dayun": trim_reply_text(str(summary.get("current_dayun") or "")),

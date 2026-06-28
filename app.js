@@ -2825,6 +2825,8 @@ function renderNamingReport(answer) {
       ? `忌耗方向：${baziSummary.caution_elements.join("、")}`
       : "",
     baziSummary.yongshen_summary || "",
+    baziSummary.pattern_conditions_summary || "",
+    baziSummary.timing_linkage_summary || "",
   ].filter(Boolean);
   const candidateRows = candidates.map((item, index) => {
     const reason = [
@@ -3019,6 +3021,8 @@ function renderSystemAnswerCards(answers, options = {}) {
         baziLines.push(`忌耗方向：${baziSummary.caution_elements.join("、")}`);
       }
       if (baziSummary.yongshen_summary) baziLines.push(`用神提示：${baziSummary.yongshen_summary}`);
+      if (baziSummary.pattern_conditions_summary) baziLines.push(`成败条件：${baziSummary.pattern_conditions_summary}`);
+      if (baziSummary.timing_linkage_summary) baziLines.push(`时运联动：${baziSummary.timing_linkage_summary}`);
       if (baziSummary.current_liunian) baziLines.push(`当前流年：${baziSummary.current_liunian}`);
       if (baziSummary.current_liuyue) baziLines.push(`当前流月：${baziSummary.current_liuyue}`);
       if (baziLines.length) {

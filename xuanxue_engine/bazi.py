@@ -135,9 +135,13 @@ def normalize_gender(gender: str) -> str:
     value = str(gender or "").strip().lower()
     if not value:
         return ""
-    if any(token in value for token in ("男", "male", "man", "m")):
+    if "男" in value:
         return "male"
-    if any(token in value for token in ("女", "female", "woman", "f")):
+    if "女" in value:
+        return "female"
+    if value in {"male", "man", "m", "boy"}:
+        return "male"
+    if value in {"female", "woman", "f", "girl"}:
         return "female"
     return ""
 
@@ -659,6 +663,119 @@ def build_yongshen_profile(
     }
 
 
+def build_pattern_conditions(
+    pattern_profile: dict[str, Any],
+    yongshen_profile: dict[str, Any],
+    strongest: list[tuple[str, int]],
+    weakest: list[str],
+) -> dict[str, Any]:
+    primary_axis = str(pattern_profile.get("primary_axis") or "").strip()
+    favorable_elements = list(yongshen_profile.get("favorable_elements") or [])
+    caution_elements = list(yongshen_profile.get("caution_elements") or [])
+    strongest_elements = [item[0] for item in strongest if strongest and item[1] == strongest[0][1]]
+
+    success_conditions: list[str] = []
+    risk_conditions: list[str] = []
+
+    if primary_axis == "wealth":
+        success_conditions.append("把资源、客户、项目和现金流收进稳定结构里，格局更容易成。")
+        risk_conditions.append("只追短平快、边界散、回款慢时，财来财去会更明显。")
+    elif primary_axis == "output":
+        success_conditions.append("持续输出方案、内容、判断和结果，格局更容易被盘活。")
+        risk_conditions.append("只说不落地，或者频繁换题，食伤的优势会被冲散。")
+    elif primary_axis == "officer":
+        success_conditions.append("站进职责清晰、规则明确、结果可衡量的位置，格局更容易立住。")
+        risk_conditions.append("长期处在无边界、无规则、全靠临场救火的环境里，官杀力会被拖弱。")
+    elif primary_axis == "resource":
+        success_conditions.append("先把资源、方法、学习和支持系统补稳，格局更容易顺起来。")
+        risk_conditions.append("准备没补够就硬扛结果，印星的保护力会不够用。")
+    else:
+        success_conditions.append("把自主性变成稳定主线，而不是四处分神，格局才容易成。")
+        risk_conditions.append("人情、合伙、分功和情绪介入过多时，比劫容易把成果冲散。")
+
+    if favorable_elements:
+        success_conditions.append(f"环境和动作多往{('、'.join(favorable_elements))}这类元素对应的路径走，会更顺手。")
+    if caution_elements:
+        risk_conditions.append(f"{('、'.join(caution_elements))}过旺时，容易把原盘的失衡再推高。")
+    if "水" in weakest:
+        risk_conditions.append("现金流、恢复力和缓冲带偏薄时，最怕节奏过满又不给自己留余地。")
+    if "火" in strongest_elements:
+        risk_conditions.append("火势过旺时容易快决策、快投入，越顺的时候越要防用力过头。")
+
+    summary = (
+        f"这类格局的成局点更在于{success_conditions[0]}"
+        f" 破局点则常见于{risk_conditions[0]}"
+    )
+
+    return {
+        "success_conditions": success_conditions,
+        "risk_conditions": risk_conditions,
+        "summary": summary,
+    }
+
+
+def build_timing_linkage(
+    day_master: str,
+    yongshen_profile: dict[str, Any],
+    current_cycle: dict[str, Any] | None,
+    current_year: dict[str, Any] | None,
+    current_month: dict[str, Any] | None,
+) -> dict[str, Any]:
+    favorable_elements = set(yongshen_profile.get("favorable_elements") or [])
+    caution_elements = set(yongshen_profile.get("caution_elements") or [])
+
+    def classify(entry: dict[str, Any] | None, label: str) -> dict[str, Any] | None:
+        if not isinstance(entry, dict) or not entry:
+            return None
+        pillar = entry.get("pillar") or {}
+        stem = str(pillar.get("stem") or "")
+        branch = str(pillar.get("branch") or "")
+        stem_element = STEM_ELEMENTS.get(stem, "")
+        branch_hidden = BRANCH_HIDDEN_STEMS.get(branch, [])
+        branch_elements = [STEM_ELEMENTS.get(item, "") for item in branch_hidden if STEM_ELEMENTS.get(item, "")]
+        matched_favorable = [element for element in [stem_element] + branch_elements if element in favorable_elements]
+        matched_caution = [element for element in [stem_element] + branch_elements if element in caution_elements]
+        support_level = "neutral"
+        if matched_favorable and not matched_caution:
+            support_level = "supportive"
+        elif matched_caution and not matched_favorable:
+            support_level = "challenging"
+        elif matched_favorable and matched_caution:
+            support_level = "mixed"
+
+        if support_level == "supportive":
+            message = f"{label}更在托举用神，适合推进结果、定方向、把握兑现。"
+        elif support_level == "challenging":
+            message = f"{label}更容易把原盘压力点翻出来，适合收边界、控节奏、防透支。"
+        elif support_level == "mixed":
+            message = f"{label}有助推也有牵扯，适合边做边校正，不宜一把压满。"
+        else:
+            message = f"{label}对原盘既不算明显加分，也不算明显拖后腿，更看你怎么用力。"
+
+        return {
+            "label": label,
+            "pillar_text": str(entry.get("pillar_text") or ""),
+            "ten_god": str(entry.get("ten_god") or ""),
+            "support_level": support_level,
+            "favorable_matches": matched_favorable,
+            "caution_matches": matched_caution,
+            "message": message,
+        }
+
+    decadal = classify(current_cycle, "当前大运")
+    yearly = classify(current_year, "当前流年")
+    monthly = classify(current_month, "当前流月")
+    messages = [item["message"] for item in (decadal, yearly, monthly) if isinstance(item, dict) and item.get("message")]
+
+    summary = " ".join(messages).strip() or "当前时运联动信息暂不完整。"
+    return {
+        "decadal": decadal,
+        "yearly": yearly,
+        "monthly": monthly,
+        "summary": summary,
+    }
+
+
 def bazi_overview(
     day_master: str,
     strength: str,
@@ -835,6 +952,8 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
     current_cycle = luck_cycle.get("current_cycle") if isinstance(luck_cycle, dict) else None
     current_year = annual_cycles.get("current_year") if isinstance(annual_cycles, dict) else None
     current_month = monthly_cycles.get("current_month") if isinstance(monthly_cycles, dict) else None
+    pattern_conditions = build_pattern_conditions(pattern_profile, yongshen_profile, strongest, weakest)
+    timing_linkage = build_timing_linkage(day_master, yongshen_profile, current_cycle, current_year, current_month)
 
     return {
         "system": "bazi",
@@ -867,6 +986,7 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "favorable_elements": favorable["favorable"],
         "caution_elements": favorable["caution"],
         "pattern_profile": pattern_profile,
+        "pattern_conditions": pattern_conditions,
         "yongshen_profile": yongshen_profile,
         "luck_cycle": luck_cycle,
         "dayun": luck_cycle.get("cycles", []) if isinstance(luck_cycle, dict) else [],
@@ -874,6 +994,7 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "liunian": annual_cycles.get("cycles", []) if isinstance(annual_cycles, dict) else [],
         "monthly_cycles": monthly_cycles,
         "liuyue": monthly_cycles.get("cycles", []) if isinstance(monthly_cycles, dict) else [],
+        "timing_linkage": timing_linkage,
         "current_cycles": {
             "decadal": current_cycle,
             "yearly": current_year,
@@ -892,6 +1013,8 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
             "pattern_name": pattern_profile.get("pattern_name") or "",
             "structure": pattern_profile.get("structure") or "",
             "yongshen_summary": yongshen_profile.get("summary") or "",
+            "pattern_conditions_summary": pattern_conditions.get("summary") or "",
+            "timing_linkage_summary": timing_linkage.get("summary") or "",
         },
         "missing_inputs": [
             item

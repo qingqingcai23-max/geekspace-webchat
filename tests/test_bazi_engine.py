@@ -34,7 +34,9 @@ class BaziEngineTests(unittest.TestCase):
         self.assertEqual(result["day_master"]["stem"], "丁")
         self.assertGreater(sum(result["five_element_counts"].values()), 0)
         self.assertIn("pattern_name", result["pattern_profile"])
+        self.assertIn("summary", result["pattern_conditions"])
         self.assertIn("summary", result["yongshen_profile"])
+        self.assertIn("summary", result["timing_linkage"])
 
     def test_calculate_bazi_continues_when_location_cannot_be_resolved(self):
         result = calculate_bazi(BaziInput(datetime(1990, 5, 12, 14, 30), gender="男", birth_location="北京"))
@@ -62,6 +64,10 @@ class BaziEngineTests(unittest.TestCase):
         self.assertTrue(result["summary"]["yongshen_summary"])
         self.assertEqual(result["summary"]["structure"], result["pattern_profile"]["structure"])
         self.assertEqual(result["favorable_elements"], result["yongshen_profile"]["favorable_elements"])
+        self.assertTrue(result["summary"]["pattern_conditions_summary"])
+        self.assertTrue(result["summary"]["timing_linkage_summary"])
+        self.assertIsNotNone(result["current_cycles"]["decadal"])
+        self.assertEqual(result["summary"]["current_dayun"], result["current_cycles"]["decadal"]["pillar_text"])
 
     def test_calculate_bazi_skips_decadal_cycles_without_gender(self):
         result = calculate_bazi(BaziInput(datetime(1990, 5, 12, 14, 30), birth_location="北京"))
@@ -74,6 +80,8 @@ class BaziEngineTests(unittest.TestCase):
         self.assertEqual(result["summary"]["has_decadal_timing"], False)
         self.assertTrue(result["summary"]["pattern_name"])
         self.assertTrue(result["summary"]["yongshen_summary"])
+        self.assertTrue(result["summary"]["pattern_conditions_summary"])
+        self.assertTrue(result["summary"]["timing_linkage_summary"])
 
     @patch("xuanxue_engine.astro_common.has_tencent_map_key", return_value=True)
     @patch("xuanxue_engine.astro_common.geocode_address")
