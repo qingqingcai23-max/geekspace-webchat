@@ -397,6 +397,70 @@ def build_annual_cycles(
     }
 
 
+def build_monthly_cycles(
+    day_master: str,
+    pillars: dict[str, dict[str, Any]],
+    reference_dt: datetime,
+) -> dict[str, Any]:
+    boundaries = collect_jie_boundaries(reference_dt.year)
+    if len(boundaries) < 2:
+        return {
+            "available": False,
+            "reason": "jieqi_unavailable",
+            "cycles": [],
+            "current_month": None,
+        }
+
+    current_interval_index = None
+    for interval_index in range(len(boundaries) - 1):
+        start_boundary = boundaries[interval_index]
+        end_boundary = boundaries[interval_index + 1]
+        if start_boundary["datetime"] <= reference_dt < end_boundary["datetime"]:
+            current_interval_index = interval_index
+            break
+
+    if current_interval_index is None:
+        current_interval_index = 0 if reference_dt < boundaries[0]["datetime"] else len(boundaries) - 2
+
+    cycles: list[dict[str, Any]] = []
+    current_month_cycle = None
+    start_index = max(0, current_interval_index - 2)
+    end_index = min(len(boundaries) - 2, current_interval_index + 4)
+
+    for interval_index in range(start_index, end_index + 1):
+        start_boundary = boundaries[interval_index]
+        end_boundary = boundaries[interval_index + 1]
+        probe_dt = start_boundary["datetime"] + (end_boundary["datetime"] - start_boundary["datetime"]) / 2
+        pillar = ganzhi(sxtwl.fromSolar(probe_dt.year, probe_dt.month, probe_dt.day).getMonthGZ())
+        entry = {
+            "index": interval_index - start_index + 1,
+            "offset_from_current": interval_index - current_interval_index,
+            "gregorian_month": probe_dt.strftime("%Y-%m"),
+            "window_label": f"{start_boundary['name']}~{end_boundary['name']}",
+            "boundary_name": start_boundary["name"],
+            "next_boundary_name": end_boundary["name"],
+            "pillar": pillar,
+            "pillar_text": pillar["text"],
+            "ten_god": ten_god(day_master, pillar["stem"]),
+            "branch_signals": branch_relation_signals(pillar["branch"], pillars),
+            "start_datetime": start_boundary["datetime"].isoformat(sep=" ", timespec="minutes"),
+            "end_datetime": end_boundary["datetime"].isoformat(sep=" ", timespec="minutes"),
+            "is_current": interval_index == current_interval_index,
+        }
+        if entry["is_current"]:
+            current_month_cycle = entry
+        cycles.append(entry)
+
+    return {
+        "available": True,
+        "reference_month": reference_dt.strftime("%Y-%m"),
+        "reference_datetime": reference_dt.isoformat(sep=" ", timespec="minutes"),
+        "rule_basis": "流月按节气切月处理，以当前所在节令区间及邻近数月提取稳定月柱。",
+        "cycles": cycles,
+        "current_month": current_month_cycle,
+    }
+
+
 def element_controlled_by(element: str) -> str:
     for source, target in ELEMENT_CONTROLS.items():
         if target == element:
@@ -606,6 +670,7 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
     reference_dt = current_reference_datetime(tz_str)
     luck_cycle = build_luck_cycle(chart_dt, pillars, day_master, data.gender, tz_str)
     annual_cycles = build_annual_cycles(day_master, pillars, reference_dt)
+    monthly_cycles = build_monthly_cycles(day_master, pillars, reference_dt)
 
     risk_flags = []
     if not data.birth_location:
@@ -621,13 +686,16 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
     if resolved_location and resolved_location.approximate:
         risk_flags.append("出生地按区域级别近似解析，真太阳时修正只能视作近似值。")
     risk_flags.append("大运起运按常用三天一岁口径折算，具体门派若采用别的换算规则，起运时点会有小幅差异。")
+    if not monthly_cycles.get("available"):
+        risk_flags.append("流月层未能完整起出，当前只保留本命结构、大运与流年参考。")
 
-    summary_note = "当前已能完成排盘、五行、十神、多维总评，以及首版大运顺逆、起运、当前大运与近年流年。"
+    summary_note = "当前已能完成排盘、五行、十神、多维总评，以及首版大运顺逆、起运、当前大运、流年与流月。"
     if not luck_cycle.get("available"):
-        summary_note = "当前已能完成排盘、五行、十神与多维总评；大运顺逆和起运仍依赖性别等信息补齐后再落全。"
+        summary_note = "当前已能完成排盘、五行、十神、多维总评，以及当前流年、流月层；大运顺逆和起运仍依赖性别等信息补齐后再落全。"
 
     current_cycle = luck_cycle.get("current_cycle") if isinstance(luck_cycle, dict) else None
     current_year = annual_cycles.get("current_year") if isinstance(annual_cycles, dict) else None
+    current_month = monthly_cycles.get("current_month") if isinstance(monthly_cycles, dict) else None
 
     return {
         "system": "bazi",
@@ -663,9 +731,12 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "dayun": luck_cycle.get("cycles", []) if isinstance(luck_cycle, dict) else [],
         "annual_cycles": annual_cycles,
         "liunian": annual_cycles.get("cycles", []) if isinstance(annual_cycles, dict) else [],
+        "monthly_cycles": monthly_cycles,
+        "liuyue": monthly_cycles.get("cycles", []) if isinstance(monthly_cycles, dict) else [],
         "current_cycles": {
             "decadal": current_cycle,
             "yearly": current_year,
+            "monthly": current_month,
             "reference_datetime": reference_dt.isoformat(sep=" ", timespec="minutes"),
         },
         "overview": overview,
@@ -676,6 +747,7 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
             "has_decadal_timing": bool(luck_cycle.get("available")),
             "current_dayun": current_cycle.get("pillar_text", "") if isinstance(current_cycle, dict) else "",
             "current_liunian": current_year.get("pillar_text", "") if isinstance(current_year, dict) else "",
+            "current_liuyue": current_month.get("pillar_text", "") if isinstance(current_month, dict) else "",
         },
         "missing_inputs": [
             item

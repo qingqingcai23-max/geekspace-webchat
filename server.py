@@ -6741,6 +6741,7 @@ def build_naming_profile_payload(question: str, result: dict[str, Any]) -> dict[
             "note": trim_reply_text(summary.get("note") or ""),
             "current_dayun": trim_reply_text(str(summary.get("current_dayun") or "")),
             "current_liunian": trim_reply_text(str(summary.get("current_liunian") or "")),
+            "current_liuyue": trim_reply_text(str(summary.get("current_liuyue") or "")),
             "has_decadal_timing": bool(summary.get("has_decadal_timing")),
             "start_age_text": trim_reply_text(str((bazi_result.get("luck_cycle") or {}).get("start_age_text") or "")),
             "direction_label": trim_reply_text(str((bazi_result.get("luck_cycle") or {}).get("direction_label") or "")),
@@ -7108,12 +7109,15 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         weakest = "、".join(summary.get("weakest_elements") or [])
         luck_cycle = result.get("luck_cycle") or {}
         annual_cycles = result.get("annual_cycles") or {}
+        monthly_cycles = result.get("monthly_cycles") or {}
         current_dayun = summary.get("current_dayun") or ""
         current_liunian = summary.get("current_liunian") or ""
+        current_liuyue = summary.get("current_liuyue") or ""
         dayun_start_text = str(luck_cycle.get("start_age_text") or "").strip()
         dayun_direction = str(luck_cycle.get("direction_label") or "").strip()
         current_dayun_entry = luck_cycle.get("current_cycle") or {}
         current_liunian_entry = annual_cycles.get("current_year") or {}
+        current_liuyue_entry = monthly_cycles.get("current_month") or {}
         ten_gods = result.get("ten_gods") or {}
         hidden_ten_gods = result.get("hidden_ten_gods") or {}
         overview = result.get("overview") or {}
@@ -7154,7 +7158,7 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                     f" 现阶段更有利的发力元素偏向{favorable or '未明'}，"
                     f"需要少硬扛的部分偏在{caution_elements or '未明'}。"
                 )
-            if current_dayun or current_liunian:
+            if current_dayun or current_liunian or current_liuyue:
                 timing_bits = []
                 if current_dayun:
                     current_dayun_ten_god = str(current_dayun_entry.get("ten_god") or "").strip()
@@ -7165,6 +7169,11 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                     current_liunian_ten_god = str(current_liunian_entry.get("ten_god") or "").strip()
                     timing_bits.append(
                         f"当前流年在{current_liunian}{f'（{current_liunian_ten_god}）' if current_liunian_ten_god else ''}"
+                    )
+                if current_liuyue:
+                    current_liuyue_ten_god = str(current_liuyue_entry.get("ten_god") or "").strip()
+                    timing_bits.append(
+                        f"当前流月在{current_liuyue}{f'（{current_liuyue_ten_god}）' if current_liuyue_ten_god else ''}"
                     )
                 if dayun_direction or dayun_start_text:
                     timing_bits.append(
@@ -8657,6 +8666,7 @@ def local_system_answer(pack: DossierPack, question: str, tags: set[str]) -> dic
                         "note": trim_reply_text(summary.get("note") or ""),
                         "current_dayun": trim_reply_text(str(summary.get("current_dayun") or "")),
                         "current_liunian": trim_reply_text(str(summary.get("current_liunian") or "")),
+                        "current_liuyue": trim_reply_text(str(summary.get("current_liuyue") or "")),
                         "has_decadal_timing": bool(summary.get("has_decadal_timing")),
                         "start_age_text": trim_reply_text(str((bazi_result.get("luck_cycle") or {}).get("start_age_text") or "")),
                         "direction_label": trim_reply_text(str((bazi_result.get("luck_cycle") or {}).get("direction_label") or "")),

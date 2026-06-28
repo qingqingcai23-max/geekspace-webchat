@@ -2782,6 +2782,7 @@ function renderNamingReport(answer) {
         : "未提供",
     },
     { label: "当前流年", value: asText(baziSummary.current_liunian) },
+    { label: "当前流月", value: asText(baziSummary.current_liuyue) },
     { label: "季节", value: asText(baziSummary.season || birthInfo.season) },
     { label: "五行", value: asText(baziSummary.five_elements) },
   ];
@@ -2991,6 +2992,7 @@ function renderSystemAnswerCards(answers, options = {}) {
         baziLines.push(`${prefix}：${baziSummary.current_dayun}${suffix}`);
       }
       if (baziSummary.current_liunian) baziLines.push(`当前流年：${baziSummary.current_liunian}`);
+      if (baziSummary.current_liuyue) baziLines.push(`当前流月：${baziSummary.current_liuyue}`);
       if (baziLines.length) {
         baziLines.push(`偏强：${strongest}`);
         baziLines.push(`偏弱：${weakest}`);

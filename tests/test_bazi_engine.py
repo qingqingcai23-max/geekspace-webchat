@@ -40,7 +40,7 @@ class BaziEngineTests(unittest.TestCase):
         self.assertEqual(result["pillars"]["day"]["text"], "丁丑")
         self.assertTrue(result["input"]["location_resolution_failed"] or result["input"]["resolved_location"])
 
-    def test_calculate_bazi_builds_decadal_and_annual_cycles_when_gender_present(self):
+    def test_calculate_bazi_builds_decadal_annual_and_monthly_cycles_when_gender_present(self):
         result = calculate_bazi(BaziInput(datetime(1990, 5, 12, 14, 30), gender="男", birth_location="北京"))
         self.assertTrue(result["luck_cycle"]["available"])
         self.assertIn(result["luck_cycle"]["direction"], {"forward", "backward"})
@@ -48,15 +48,22 @@ class BaziEngineTests(unittest.TestCase):
         self.assertIsNotNone(result["luck_cycle"]["current_cycle"])
         self.assertTrue(result["annual_cycles"]["available"])
         self.assertGreaterEqual(len(result["liunian"]), 5)
+        self.assertTrue(result["monthly_cycles"]["available"])
+        self.assertGreaterEqual(len(result["liuyue"]), 5)
+        self.assertIsNotNone(result["monthly_cycles"]["current_month"])
+        self.assertEqual(result["current_cycles"]["monthly"]["pillar_text"], result["summary"]["current_liuyue"])
         self.assertEqual(result["summary"]["has_decadal_timing"], True)
         self.assertTrue(result["summary"]["current_dayun"])
         self.assertTrue(result["summary"]["current_liunian"])
+        self.assertTrue(result["summary"]["current_liuyue"])
 
     def test_calculate_bazi_skips_decadal_cycles_without_gender(self):
         result = calculate_bazi(BaziInput(datetime(1990, 5, 12, 14, 30), birth_location="北京"))
         self.assertFalse(result["luck_cycle"]["available"])
         self.assertEqual(result["luck_cycle"]["reason"], "missing_gender")
         self.assertEqual(result["dayun"], [])
+        self.assertTrue(result["monthly_cycles"]["available"])
+        self.assertTrue(result["summary"]["current_liuyue"])
         self.assertIn("未提供性别", " ".join(result["risk_flags"]))
         self.assertEqual(result["summary"]["has_decadal_timing"], False)
 
