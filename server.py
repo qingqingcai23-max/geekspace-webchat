@@ -7299,6 +7299,7 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                 ] if part
             ) + "。"
         if "career_path" in focus:
+            career_theme = theme_guidance.get("career") or {}
             path_parts: list[str] = []
             risk_parts: list[str] = []
             if officer_count >= 1:
@@ -7318,7 +7319,9 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
             return "。".join(
                 part for part in [
                     f"八字看事业，以日主{day_master.get('stem', '')}为核心，当前职业路径重点在于把能见度、责任位和产出方式接起来",
+                    trim_reply_text(career_theme.get("summary")),
                     "；".join(path_parts),
+                    f"当前时运：{trim_reply_text(career_theme.get('timing_note'))}" if trim_reply_text(career_theme.get("timing_note")) else "",
                     f"要防的是：{'；'.join(risk_parts)}" if risk_parts else "",
                 ] if part
             ) + "。"
@@ -7371,6 +7374,21 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                     "适合走能让你主动组织、表达判断、逐步形成个人方法论的方向。",
                 ] if part
             )
+        if "health" in focus:
+            health_theme = theme_guidance.get("health") or {}
+            health_risks = "；".join(
+                trim_reply_text(item)
+                for item in (health_theme.get("risk_points") or [])
+                if trim_reply_text(item)
+            )
+            return "。".join(
+                part for part in [
+                    f"八字看健康，这盘以日主{day_master.get('stem', '')}为核心，更重要的是看节奏、恢复力和长期消耗结构。",
+                    trim_reply_text(health_theme.get("summary")),
+                    f"当前时运：{trim_reply_text(health_theme.get('timing_note'))}" if trim_reply_text(health_theme.get("timing_note")) else "",
+                    f"平时要注意的是：{health_risks}" if health_risks else "",
+                ] if part
+            ) + "。"
         if strongest or weakest:
             return (
                 f"八字先看日主 {day_master.get('stem', '')}，五行呈现 {strongest or '未明'} 偏强、"

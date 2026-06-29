@@ -72,6 +72,7 @@ class BaziEngineTests(unittest.TestCase):
         self.assertEqual(result["summary"]["current_dayun"], result["current_cycles"]["decadal"]["pillar_text"])
         self.assertTrue(result["theme_guidance"]["career"]["summary"])
         self.assertIsInstance(result["theme_guidance"]["wealth"]["risk_points"], list)
+        self.assertTrue(result["theme_guidance"]["health"]["timing_note"])
 
     def test_calculate_bazi_skips_decadal_cycles_without_gender(self):
         result = calculate_bazi(BaziInput(datetime(1990, 5, 12, 14, 30), birth_location="北京"))
