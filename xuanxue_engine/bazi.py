@@ -981,6 +981,48 @@ def build_career_decision_guidance(
     }
 
 
+def build_special_topic_guidance(
+    career_decision: dict[str, Any],
+    pattern_conditions: dict[str, Any],
+    theme_guidance: dict[str, dict[str, Any]],
+    timing_linkage: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    career_theme = theme_guidance.get("career") or {}
+    wealth_theme = theme_guidance.get("wealth") or {}
+    relationship_theme = theme_guidance.get("relationship") or {}
+    primary_mode = str(career_decision.get("primary_mode") or "").strip()
+    secondary_mode = str(career_decision.get("secondary_mode") or "").strip()
+    avoid_mode = str(career_decision.get("avoid_mode") or "").strip()
+    sequencing = [str(item or "").strip() for item in (career_decision.get("sequencing") or []) if str(item or "").strip()]
+    timing_summary = str(timing_linkage.get("summary") or "").strip()
+    success_conditions = [str(item or "").strip() for item in (pattern_conditions.get("success_conditions") or []) if str(item or "").strip()]
+    risk_conditions = [str(item or "").strip() for item in (pattern_conditions.get("risk_conditions") or []) if str(item or "").strip()]
+
+    return {
+        "job_change": {
+            "summary": "跳槽更适合发生在主线已经清楚、成果可以带走、而不是只凭情绪想换的时候。",
+            "preferred_action": f"先稳住{primary_mode or '当前主线'}，再把{secondary_mode or '下一步方向'}当跳板，会更顺。",
+            "avoid_action": "不要在回款、边界、职责都还没看清时，为了逃离感仓促跳走。",
+            "timing_note": timing_summary,
+            "evidence": [str(career_theme.get("summary") or "").strip()] + sequencing[:2],
+        },
+        "partnership": {
+            "summary": "合作这类题最怕边界不清、分工不明、账目和回款节奏没人盯。",
+            "preferred_action": "先谈边界、分工、回款和退出机制，再谈感情和愿景。",
+            "avoid_action": "不要因为关系近、机会热，就跳过分账、责任和交付约束。",
+            "timing_note": timing_summary,
+            "evidence": [str(wealth_theme.get("summary") or "").strip(), str(relationship_theme.get("summary") or "").strip()] + risk_conditions[:1],
+        },
+        "startup_timing": {
+            "summary": f"创业目前更适合放在{avoid_mode != '创业' and '可逐步试水' or '后置阶段'}，不是一上来就重仓压主线。",
+            "preferred_action": "先把稳定结果、信用、方法和客户来源沉淀出来，再放大不确定性。",
+            "avoid_action": "如果还在靠情绪顶、靠朋友顶、靠模糊机会顶，就先别把创业拉成唯一主线。",
+            "timing_note": timing_summary,
+            "evidence": success_conditions[:1] + sequencing[:2],
+        },
+    }
+
+
 def bazi_overview(
     day_master: str,
     strength: str,
@@ -1175,6 +1217,12 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         weakest,
         theme_guidance,
     )
+    special_topic_guidance = build_special_topic_guidance(
+        career_decision,
+        pattern_conditions,
+        theme_guidance,
+        timing_linkage,
+    )
 
     return {
         "system": "bazi",
@@ -1211,6 +1259,7 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "yongshen_profile": yongshen_profile,
         "theme_guidance": theme_guidance,
         "career_decision": career_decision,
+        "special_topic_guidance": special_topic_guidance,
         "luck_cycle": luck_cycle,
         "dayun": luck_cycle.get("cycles", []) if isinstance(luck_cycle, dict) else [],
         "annual_cycles": annual_cycles,

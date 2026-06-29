@@ -7134,6 +7134,7 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         timing_linkage = result.get("timing_linkage") or {}
         theme_guidance = result.get("theme_guidance") or {}
         career_decision = result.get("career_decision") or {}
+        special_topic_guidance = result.get("special_topic_guidance") or {}
         strength = str(result.get("day_master_strength") or "")
         favorable = "、".join(result.get("favorable_elements") or [])
         caution_elements = "、".join(result.get("caution_elements") or [])
@@ -7254,6 +7255,43 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
                 ] if part
             ) + "。"
         career_options = extract_career_option_candidates(question)
+        normalized_topics = normalized_question_topics(question, tags)
+        if "career_path" in focus and any(token in question for token in ("跳槽", "换工作", "离职")):
+            jump = special_topic_guidance.get("job_change") or {}
+            evidence = "；".join(trim_reply_text(item) for item in (jump.get("evidence") or []) if trim_reply_text(item))
+            return "。".join(
+                part for part in [
+                    f"八字看跳槽，这盘以日主{day_master.get('stem', '')}为核心，{trim_reply_text(jump.get('summary'))}",
+                    trim_reply_text(jump.get("preferred_action")),
+                    f"当前时运：{trim_reply_text(jump.get('timing_note'))}" if trim_reply_text(jump.get("timing_note")) else "",
+                    f"判断依据：{evidence}" if evidence else "",
+                    trim_reply_text(jump.get("avoid_action")),
+                ] if part
+            ) + "。"
+        if "career_path" in focus and any(token in question for token in ("合作", "合伙", "一起做项目", "合作方", "分账")):
+            partnership = special_topic_guidance.get("partnership") or {}
+            evidence = "；".join(trim_reply_text(item) for item in (partnership.get("evidence") or []) if trim_reply_text(item))
+            return "。".join(
+                part for part in [
+                    f"八字看合作，这盘以日主{day_master.get('stem', '')}为核心，{trim_reply_text(partnership.get('summary'))}",
+                    trim_reply_text(partnership.get("preferred_action")),
+                    f"当前时运：{trim_reply_text(partnership.get('timing_note'))}" if trim_reply_text(partnership.get("timing_note")) else "",
+                    f"判断依据：{evidence}" if evidence else "",
+                    trim_reply_text(partnership.get("avoid_action")),
+                ] if part
+            ) + "。"
+        if "career_path" in focus and "timing" in normalized_topics and "创业" in question:
+            startup = special_topic_guidance.get("startup_timing") or {}
+            evidence = "；".join(trim_reply_text(item) for item in (startup.get("evidence") or []) if trim_reply_text(item))
+            return "。".join(
+                part for part in [
+                    f"八字看创业时机，这盘以日主{day_master.get('stem', '')}为核心，{trim_reply_text(startup.get('summary'))}",
+                    trim_reply_text(startup.get("preferred_action")),
+                    f"当前时运：{trim_reply_text(startup.get('timing_note'))}" if trim_reply_text(startup.get("timing_note")) else "",
+                    f"判断依据：{evidence}" if evidence else "",
+                    trim_reply_text(startup.get("avoid_action")),
+                ] if part
+            ) + "。"
         if "career_path" in focus and len(career_options) >= 2:
             option_set = set(career_options)
             preferred_mode = str(career_decision.get("primary_mode") or "")

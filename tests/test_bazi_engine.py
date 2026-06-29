@@ -40,6 +40,7 @@ class BaziEngineTests(unittest.TestCase):
         self.assertIn("career", result["theme_guidance"])
         self.assertIn("wealth", result["theme_guidance"])
         self.assertIn("primary_mode", result["career_decision"])
+        self.assertIn("job_change", result["special_topic_guidance"])
 
     def test_calculate_bazi_continues_when_location_cannot_be_resolved(self):
         result = calculate_bazi(BaziInput(datetime(1990, 5, 12, 14, 30), gender="男", birth_location="北京"))
@@ -76,6 +77,7 @@ class BaziEngineTests(unittest.TestCase):
         self.assertTrue(result["theme_guidance"]["health"]["timing_note"])
         self.assertTrue(result["career_decision"]["summary"])
         self.assertGreaterEqual(len(result["career_decision"]["mode_order"]), 3)
+        self.assertTrue(result["special_topic_guidance"]["startup_timing"]["summary"])
 
     def test_calculate_bazi_skips_decadal_cycles_without_gender(self):
         result = calculate_bazi(BaziInput(datetime(1990, 5, 12, 14, 30), birth_location="北京"))
