@@ -7133,6 +7133,7 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         yongshen_profile = result.get("yongshen_profile") or {}
         timing_linkage = result.get("timing_linkage") or {}
         theme_guidance = result.get("theme_guidance") or {}
+        career_decision = result.get("career_decision") or {}
         strength = str(result.get("day_master_strength") or "")
         favorable = "、".join(result.get("favorable_elements") or [])
         caution_elements = "、".join(result.get("caution_elements") or [])
@@ -7255,10 +7256,20 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
         career_options = extract_career_option_candidates(question)
         if "career_path" in focus and len(career_options) >= 2:
             option_set = set(career_options)
+            preferred_mode = str(career_decision.get("primary_mode") or "")
+            secondary_mode = str(career_decision.get("secondary_mode") or "")
+            avoid_reason = trim_reply_text(career_decision.get("avoid_reason") or "")
+            sequencing_text = "；".join(
+                trim_reply_text(item)
+                for item in (career_decision.get("sequencing") or [])
+                if trim_reply_text(item)
+            )
             if option_set == {"上班", "创业", "自由职业"}:
                 return (
                     f"八字放到职业模式三选一上，以日主{day_master.get('stem', '')}为核心，"
-                    f"{career_option_summary(question, '上班', '自由职业', '创业不要一上来就重仓，先借平台把结果、信用和方法沉淀出来会更稳。')}"
+                    f"{career_option_summary(question, preferred_mode or '上班', secondary_mode or '自由职业', avoid_reason or '创业不要一上来就重仓，先借平台把结果、信用和方法沉淀出来会更稳。')}"
+                    f"{trim_reply_text(career_decision.get('summary') or '')}"
+                    f"{f' {sequencing_text}' if sequencing_text else ''}"
                     f"{' 官杀能立得住，说明你在职责清楚、结果可衡量的位置上更容易出成绩。' if officer_count >= 1 else ''}"
                     f"{' 食伤有力，所以后面转成更独立的输出也不是没空间。' if output_count >= 1 else ''}"
                     f"{' 比劫偏重时，太早创业更怕资源分流、人情牵扯和节奏被打散。' if peer_count >= 2 else ''}"
@@ -7266,17 +7277,22 @@ def summarize_local_result(pack: DossierPack, result: dict[str, Any], question: 
             if option_set == {"上班", "自由职业", "自己接项目"}:
                 return (
                     f"八字放到这组三选一上，以日主{day_master.get('stem', '')}为核心，"
-                    f"{career_option_summary(question, '上班', '自由职业', '自己接项目不要一上来就压成主线，至少先把客户来源、回款节奏和交付边界练稳。')}"
+                    f"{career_option_summary(question, preferred_mode or '上班', secondary_mode or '自由职业', avoid_reason or '自己接项目不要一上来就压成主线，至少先把客户来源、回款节奏和交付边界练稳。')}"
+                    f"{trim_reply_text(career_decision.get('summary') or '')}"
+                    f"{f' {sequencing_text}' if sequencing_text else ''}"
                     f"{' 官杀能立得住，说明你在职责清楚、结果可衡量的位置上更容易出成绩。' if officer_count >= 1 else ''}"
                     f"{' 食伤有力，所以后面转成更独立的输出也不是没空间。' if output_count >= 1 else ''}"
                     f"{' 比劫偏重时，太早把项目合作扛到最前面，更怕资源分流、人情牵扯和节奏被打散。' if peer_count >= 2 else ''}"
                 ).replace("。。", "。").strip()
             if option_set == {"销售", "咨询", "自己接项目"}:
-                preferred = "咨询" if output_count >= 1 else "销售"
-                secondary = "销售" if preferred == "咨询" else "咨询"
+                style_order = list(career_decision.get("style_order") or [])
+                preferred = style_order[0] if style_order else ("咨询" if output_count >= 1 else "销售")
+                secondary = style_order[1] if len(style_order) > 1 else ("销售" if preferred == "咨询" else "咨询")
                 return (
                     f"八字放到这组三选一上，以日主{day_master.get('stem', '')}为核心，"
-                    f"{career_option_summary(question, preferred, secondary, '自己接项目更像第二阶段，至少要先把客户来源、回款节奏和交付边界练稳。')}"
+                    f"{career_option_summary(question, preferred, secondary, avoid_reason or '自己接项目更像第二阶段，至少要先把客户来源、回款节奏和交付边界练稳。')}"
+                    f"{trim_reply_text(career_decision.get('summary') or '')}"
+                    f"{f' {sequencing_text}' if sequencing_text else ''}"
                     f"{' 食伤有力，说明你更适合把表达、判断和解决问题的能力直接变成价值。' if output_count >= 1 else ''}"
                     f"{' 财星能见，所以销售和结果导向的角色也能接得住。' if direct_wealth_count >= 1 or hidden_wealth_count >= 1 else ''}"
                     f"{' 比劫偏重时，独立接项目最怕中途被分神、被分功，或者钱进来又被杂事吃掉。' if peer_count >= 2 else ''}"

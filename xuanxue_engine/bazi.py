@@ -885,6 +885,102 @@ def build_theme_guidance(
     return themes
 
 
+def build_career_decision_guidance(
+    ten_gods: dict[str, str],
+    hidden_ten_gods: dict[str, list[dict[str, str]]],
+    strongest: list[tuple[str, int]],
+    weakest: list[str],
+    theme_guidance: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    def clean_text(value: Any) -> str:
+        return str(value or "").strip()
+
+    counts = ten_god_group_counts(ten_gods, hidden_ten_gods)
+    career_theme = theme_guidance.get("career") or {}
+    direction_theme = theme_guidance.get("direction") or {}
+
+    scores = {
+        "上班": 0,
+        "自由职业": 0,
+        "创业": 0,
+        "自己接项目": 0,
+        "咨询": 0,
+        "销售": 0,
+    }
+
+    if counts.get("officer", 0) >= 1:
+        scores["上班"] += 3
+        scores["销售"] += 1
+    if counts.get("output", 0) >= 2:
+        scores["自由职业"] += 3
+        scores["咨询"] += 3
+        scores["自己接项目"] += 1
+    if counts.get("wealth", 0) >= 2:
+        scores["销售"] += 2
+        scores["创业"] += 1
+        scores["自己接项目"] += 1
+    if counts.get("peer", 0) >= 3:
+        scores["创业"] -= 2
+        scores["自己接项目"] -= 2
+        scores["上班"] += 1
+    if "火" in [item[0] for item in strongest if strongest and item[1] == strongest[0][1]]:
+        scores["创业"] -= 1
+        scores["自由职业"] += 1
+    if "木" in weakest:
+        scores["创业"] -= 1
+        scores["自己接项目"] -= 1
+        scores["上班"] += 1
+
+    mode_order = sorted(
+        ["上班", "自由职业", "创业", "自己接项目"],
+        key=lambda item: (scores.get(item, 0), item),
+        reverse=True,
+    )
+    style_order = sorted(
+        ["咨询", "销售", "自己接项目"],
+        key=lambda item: (scores.get(item, 0), item),
+        reverse=True,
+    )
+
+    primary_mode = mode_order[0]
+    secondary_mode = mode_order[1]
+    avoid_mode = mode_order[-1]
+
+    if primary_mode == "上班":
+        summary = "职业主线更适合先借平台、岗位和明确责任位做出结果，再逐步扩展独立性。"
+    elif primary_mode == "自由职业":
+        summary = "职业主线更适合先把个人输出、方法和口碑做成稳定邀约，再决定要不要放大成更重模式。"
+    else:
+        summary = "职业主线更适合先用结果验证路径，但不要一开始就把全部变量压满。"
+
+    avoid_reason = {
+        "创业": "创业目前更像后置题，太早会把资源、关系和节奏压力一起抬上来。",
+        "自己接项目": "自己接项目更容易卡在客户来源、交付边界和回款节奏上。",
+        "自由职业": "自由职业若太早切主线，容易先遇到稳定度不够的问题。",
+        "上班": "上班不是不能做，但如果完全只靠被安排，盘里的主动输出会被压住。",
+    }.get(avoid_mode, "")
+
+    sequencing = [
+        f"更适合先走{primary_mode}主线，再把{secondary_mode}当过渡或第二阶段。",
+        "先把稳定结果、信用和方法沉淀出来，再决定是否放大不确定性。",
+        clean_text(career_theme.get("timing_note") or ""),
+    ]
+
+    return {
+        "scores": scores,
+        "mode_order": mode_order,
+        "style_order": style_order,
+        "primary_mode": primary_mode,
+        "secondary_mode": secondary_mode,
+        "avoid_mode": avoid_mode,
+        "summary": summary,
+        "avoid_reason": avoid_reason,
+        "sequencing": [item for item in sequencing if item],
+        "career_summary": clean_text(career_theme.get("summary") or ""),
+        "direction_summary": clean_text(direction_theme.get("summary") or ""),
+    }
+
+
 def bazi_overview(
     day_master: str,
     strength: str,
@@ -1072,6 +1168,13 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         yongshen_profile,
         timing_linkage,
     )
+    career_decision = build_career_decision_guidance(
+        ten_gods,
+        hidden_ten_gods,
+        strongest,
+        weakest,
+        theme_guidance,
+    )
 
     return {
         "system": "bazi",
@@ -1107,6 +1210,7 @@ def calculate_bazi(data: BaziInput) -> dict[str, Any]:
         "pattern_conditions": pattern_conditions,
         "yongshen_profile": yongshen_profile,
         "theme_guidance": theme_guidance,
+        "career_decision": career_decision,
         "luck_cycle": luck_cycle,
         "dayun": luck_cycle.get("cycles", []) if isinstance(luck_cycle, dict) else [],
         "annual_cycles": annual_cycles,
